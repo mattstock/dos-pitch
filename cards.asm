@@ -3,9 +3,9 @@
     .STACK 200h
 
     Heart   EQU 03h
-    Spade   EQU 06h
-    Club    EQU 05h
     Diamond EQU 04h
+    Club    EQU 05h
+    Spade   EQU 06h
 
     .DATA
 
@@ -16,6 +16,7 @@
     .CODE
     EXTRN Rand:PROC
     EXTRN RandInit:PROC
+    EXTRN PrintHex:PROC
     
 ProgramStart PROC NEAR
     mov ax, @data
@@ -45,36 +46,5 @@ RandCard PROC NEAR
     ret
     ENDP RandCard
     
-;;; AX is the hex number to be printed
-PrintHex PROC NEAR
-    mov cl, 16
-loop2:
-    sub cl, 4
-    mov dx, ax
-    shr dx, cl
-    and dl, 0fh
-    push ax
-    mov ah, 2
-    cmp dl, 9h
-    jg alpha
-    add dl, '0'
-    jmp p1
-alpha:
-    sub dl, 10
-    add dl, 'A'
-p1:     
-    int 21h
-    pop ax
-    cmp cl, 0
-    jnz loop2
-    push ax
-    mov ah, 2
-    mov dl, 0dh
-    int 21h
-    mov dl, 0ah
-    int 21h
-    pop ax
-    ret
-    ENDP PrintHex
     
 END
