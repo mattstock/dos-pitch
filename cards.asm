@@ -11,26 +11,59 @@
 
     Suits DB 03,04,05,06
     Cards DB 'A234567890JQK'
-    NumPlayers DB ? ; 2 or 4
+    Deck DB 104 DUP(?)
     
     .CODE
     EXTRN Rand:PROC
     EXTRN RandInit:PROC
     EXTRN PrintHex:PROC
     
-ProgramStart PROC NEAR
+PROC ProgramStart
     mov ax, @data
     mov ds, ax
+    mov es, ax
     call RandInit
-
-    call RandCard
-    
-    mov ah, 4ch
+    call GenerateCards
+    mov si,OFFSET Deck
+    mov cx, 52
+s2:
+    lodsw
+    mov bx, ax
+    mov dl, bl
+    mov ah, 2
     int 21h
-    ENDP ProgramStart
+    mov dl, bh
+    int 21h
+    mov dl, ','
+    int 21h
+    loop s2
+    mov ah, 4ch
+    mov al, 0
+    int 21h
+ENDP ProgramStart
+
+PROC GenerateCards
+    cld
+    mov di,OFFSET Deck
+    mov bx,OFFSET Suits
+    mov dx, 4
+s1:     
+    mov ah, [bx] ; load suit symbol
+    mov cx, 13
+    mov si,OFFSET Cards
+cardloop:
+    lodsb ; pull in card number to AL
+    stosw ; write AX with card and suit
+    loop cardloop
+    inc bx
+    dec dx
+    jnz s1
+    
+    ret
+    ENDP GenerateCards
 
     ; Pick a random card
-RandCard PROC NEAR
+PROC RandCard
     call Rand
     mov ah, 0
     mov cl, 13

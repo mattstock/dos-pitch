@@ -7,7 +7,9 @@
 ;;; AX is the hex number to be printed
     PUBLIC PrintHex
     
-PrintHex PROC NEAR
+    PrintHex PROC NEAR
+    push cx
+    push dx
     mov cl, 16
 loop2:
     sub cl, 4
@@ -35,6 +37,8 @@ p1:
     mov dl, 0ah
     int 21h
     pop ax
+    pop dx
+    pop cx
     ret
     ENDP PrintHex
 END
