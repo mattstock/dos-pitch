@@ -56,4 +56,48 @@
     pop ax
     ret
     ENDP PrintHex
+
+    PUBLIC PrintDecByte
+    PROC PrintDecByte
+    push dx
+    push cx
+    push ax
+    mov ah, 0
+    mov dx, 0
+hund:   
+    cmp al, 100
+    jb tens
+    add dx, 100h
+    sub al, 100
+    jmp hund
+tens:
+    cmp al, 10
+    jb ones
+    add dx, 10h
+    sub al, 10
+    jmp tens
+ones:
+    add ax, dx
+    ; bcd value in ax
+    call PrintHex
+    pop ax
+    pop cx
+    pop dx
+    ret
+    ENDP
+
+    PUBLIC PrintCrNl
+    PROC PrintCrNl
+    push ax
+    push dx
+    mov ah, 2
+    mov dl, 13
+    int 21h
+    mov dl, 10
+    int 21h
+    pop dx
+    pop ax
+    ret
+    ENDP PrintCrNl
+
 END
