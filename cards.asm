@@ -25,16 +25,13 @@
     TopIdx DW Deck
 
     Players LABEL WORD
-    Player1 DW 5 DUP(?)
-    Player2 DW 5 DUP(?)
-    Player3 DW 5 DUP(?)
-    Player4 DW 5 DUP(?)
-    
-IF DEBUG    
-    Msg1 DB 'Swapping $'
-    Msg2 DB ' for $'
-    Buf  DB 'xx$'
-ENDIF
+    Player1 DW 5 DUP('x?')
+    Player2 DW 5 DUP('x?')
+    Player3 DW 5 DUP('x?')
+    Player4 DW 5 DUP('x?')
+
+    PlayerMsg DB 'Player $'
+    Oops DB 'Something bad happend$'
     
     .CODE
     EXTRN Rand:PROC
@@ -42,8 +39,7 @@ ENDIF
     EXTRN PrintHex:PROC
     EXTRN PrintHexByte:PROC
     EXTRN PrintDecByte:PROC
-    EXTRN PrintCrNl:PROC
-    
+    EXTRN PrintCrLf:PROC
 ProgramStart:   
     mov ax, @data
     mov ds, ax
@@ -51,8 +47,11 @@ ProgramStart:
 
     call RandInit
     call ShuffleDeck
-    call DrawCard
-    call PrintCard
+
+    mov ax, 4
+    call DrawHands
+    
+    call PrintHands
     
     ; exit to DOS
     mov ah, 4ch
@@ -61,6 +60,7 @@ ProgramStart:
 
 
     ; PrintDeck
+GLOBAL PrintDeck:PROC
     PROC PrintDeck
     push dx
     push ax
@@ -73,6 +73,7 @@ ProgramStart:
     ENDP PrintDeck
     
     ; ShuffleDeck generates a random deck from the cards
+GLOBAL ShuffleDeck:PROC
     PROC ShuffleDeck
     push ax
     push bx
@@ -80,48 +81,18 @@ ProgramStart:
     push dx
     push di
     push si
-    mov bx,OFFSET Deck
+    mov bx, OFFSET Deck
     mov cx, 200                 ; swap number of times
 s1:
-IF DEBUG
-    mov dx, OFFSET Msg1         ; Swapping 
-    mov ah, 9
-    int 21h
-ENDIF
-    
-    xor ax, ax
     call GetIndex
     shl ax, 1
     mov di, ax
 
-IF DEBUG    
-    push ax
-    mov ax, [bx+di]
-    mov WORD PTR [Buf], ax
-    mov ah, 9
-    mov dx, OFFSET Buf
-    int 21h
-    mov dx, OFFSET Msg2         ; to
-    int 21h
-    pop ax
-ENDIF
-    
-    xor ax, ax
     call GetIndex
     shl ax, 1
-
-IF DEBUG
-    push ax
-    mov ax, [bx+si]
-    mov WORD PTR [Buf], ax
-    mov ah, 9
-    mov dx, OFFSET Buf
-    int 21h
-    call PrintCrNl
-    pop ax
-ENDIF
-    
     mov si, ax
+
+    ; Swap the two cards
     mov dx, [bx+si]
     mov ax, [bx+di]
     mov [bx+si], ax
@@ -140,7 +111,8 @@ ENDIF
     ret
     ENDP ShuffleDeck
 
-    ; Pick a card and return index in AL
+    ; Pick a card and return index in AX
+GLOBAL GetIndex:PROC
     PROC GetIndex
     push dx
     call Rand
@@ -155,18 +127,23 @@ ENDIF
 
     ; Grab top card from the deck
     ; Returns AX with card
+GLOBAL DrawCard:PROC
     PROC DrawCard
     push bx
     mov bx, [TopIdx]
     mov ax, [bx]
     add TopIdx,2
     pop bx
+    xchg ah, al
     ret
     ENDP DrawCard
 
+    ; Print card in AX
+GLOBAL PrintCard:PROC
     PROC PrintCard
     push dx
     mov dx, ax
+    xchg dh, dl
     mov ah, 2
     int 21h
     xchg dh, dl
@@ -175,5 +152,80 @@ ENDIF
     ret
     ENDP PrintCard
 
+    ; Draw cards for number of players in AL
+GLOBAL DrawHands:PROC
+    PROC DrawHands
+    push di
+    push ax
+    push bx
+    push cx
+
+    mov bx, 0
+dh0:    
+    mov di, OFFSET Players
+    add di, bx                  ; which card are we working with?
+    xor cx, cx
+    mov cl, al
+    push ax
+dh1:
+    call DrawCard
+    mov [di], ax                ; put card in player hand
+    add di, 5*2                 ; move to the next player
+    loop dh1
+    pop ax
+    add bx, 2
+    cmp bx, 10
+    jnz dh0
+
+    pop cx
+    pop bx
+    pop ax
+    pop di
+    ret
+    ENDP DrawHands
+    
+    ; Print cards in hand for number of players in AL
+GLOBAL PrintHands:PROC
+    PROC PrintHands
+    push si
+    push ax
+    push bx
+    push cx
+    push dx
+    mov si, OFFSET Players
+    mov bh, al
+    mov bl, bh
+lp:
+    mov dx, OFFSET PlayerMsg
+    mov ah, 9
+    int 21h
+    mov dl, '1'
+    add dl, bh
+    sub dl, bl
+    mov ah, 2
+    int 21h
+    mov dl, ':'
+    int 21h
+    mov dl, ' '
+    int 21h
+    mov cx, 5
+lph:    
+    lodsw
+    call PrintCard
+    mov ah, 2
+    mov dl, ' '
+    int 21h
+    loop lph
+    call PrintCrLf
+    dec bl
+    jnz lp
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    pop si
+    ret
+    ENDP PrintHands
+  
 END
 

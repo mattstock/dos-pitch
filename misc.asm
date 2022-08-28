@@ -86,8 +86,8 @@ ones:
     ret
     ENDP
 
-    PUBLIC PrintCrNl
-    PROC PrintCrNl
+    PUBLIC PrintCrLf
+    PROC PrintCrLf
     push ax
     push dx
     mov ah, 2
@@ -98,6 +98,6 @@ ones:
     pop dx
     pop ax
     ret
-    ENDP PrintCrNl
+    ENDP PrintCrLf
 
 END
