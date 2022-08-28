@@ -6,7 +6,10 @@
     Diamond     EQU 04h
     Club        EQU 05h
     Spade       EQU 06h
+
     DeckSize    EQU 52
+    
+    DEBUG       EQU 0
     
     .DATA
 
@@ -17,11 +20,21 @@
          DB 'A',05,'2',05,'3',05,'4',05,'5',05,'6',05,'7',05
          DB '8',05,'9',05,'0',05,'J',05,'Q',05,'K',05 
          DB 'A',06,'2',06,'3',06,'4',06,'5',06,'6',06,'7',06
-         DB '8',06,'9',06,'0',06,'J',06,'Q',06,'K',06,'$'
+         DB '8',06,'9',06,'0',06,'J',06,'Q',06,'K',06,'$$'
 
+    TopIdx DW Deck
+
+    Players LABEL WORD
+    Player1 DW 5 DUP(?)
+    Player2 DW 5 DUP(?)
+    Player3 DW 5 DUP(?)
+    Player4 DW 5 DUP(?)
+    
+IF DEBUG    
     Msg1 DB 'Swapping $'
     Msg2 DB ' for $'
     Buf  DB 'xx$'
+ENDIF
     
     .CODE
     EXTRN Rand:PROC
@@ -38,8 +51,9 @@ ProgramStart:
 
     call RandInit
     call ShuffleDeck
-    call PrintDeck
-
+    call DrawCard
+    call PrintCard
+    
     ; exit to DOS
     mov ah, 4ch
     mov al, 0
@@ -69,15 +83,18 @@ ProgramStart:
     mov bx,OFFSET Deck
     mov cx, 200                 ; swap number of times
 s1:
+IF DEBUG
     mov dx, OFFSET Msg1         ; Swapping 
     mov ah, 9
     int 21h
-
+ENDIF
+    
     xor ax, ax
     call GetIndex
     shl ax, 1
     mov di, ax
-    
+
+IF DEBUG    
     push ax
     mov ax, [bx+di]
     mov WORD PTR [Buf], ax
@@ -87,10 +104,13 @@ s1:
     mov dx, OFFSET Msg2         ; to
     int 21h
     pop ax
+ENDIF
     
     xor ax, ax
     call GetIndex
     shl ax, 1
+
+IF DEBUG
     push ax
     mov ax, [bx+si]
     mov WORD PTR [Buf], ax
@@ -99,6 +119,7 @@ s1:
     int 21h
     call PrintCrNl
     pop ax
+ENDIF
     
     mov si, ax
     mov dx, [bx+si]
@@ -106,6 +127,10 @@ s1:
     mov [bx+si], ax
     mov [bx+di], dx
     loop s1
+
+    ; Reset to the top of the deck
+    mov TopIdx, OFFSET Deck
+    
     pop si
     pop di
     pop dx
@@ -128,5 +153,27 @@ s1:
     ret
     ENDP GetIndex
 
+    ; Grab top card from the deck
+    ; Returns AX with card
+    PROC DrawCard
+    push bx
+    mov bx, [TopIdx]
+    mov ax, [bx]
+    add TopIdx,2
+    pop bx
+    ret
+    ENDP DrawCard
+
+    PROC PrintCard
+    push dx
+    mov dx, ax
+    mov ah, 2
+    int 21h
+    xchg dh, dl
+    int 21h
+    pop dx
+    ret
+    ENDP PrintCard
 
 END
+
