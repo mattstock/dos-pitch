@@ -1,20 +1,22 @@
+    IDEAL
     DOSSEG
-    .MODEL small
+    MODEL small
 
-    .DATA
+    INCLUDE "misc.inc"
+    
+    DATASEG
 
     HexDigits DB '0123456789ABCDEF'
     Result DB 3 DUP(?)
     
-    .CODE
+    CODESEG
 
     ; al = byte to print
     ;
     ; destroys di, ax, bx, cx, dx
-    PUBLIC PrintHexByte
     PROC PrintHexByte
 
-    mov BYTE PTR [Result+2], '$'  ; terminate string
+    mov [Result+2], '$'  ; terminate string
     mov di, OFFSET Result+1
     std
     xor bh, bh
@@ -37,7 +39,6 @@
     ENDP PrintHexByte
     
 ;;; AX is the hex number to be printed
-    PUBLIC PrintHex
     PROC PrintHex
     push ax
     push bx
@@ -57,7 +58,6 @@
     ret
     ENDP PrintHex
 
-    PUBLIC PrintDecByte
     PROC PrintDecByte
     push dx
     push cx
@@ -86,7 +86,6 @@ ones:
     ret
     ENDP
 
-    PUBLIC PrintCrLf
     PROC PrintCrLf
     push ax
     push dx

@@ -1,30 +1,32 @@
-    .MODEL small
-    .DATA
+    IDEAL
+    MODEL small
+
+    INCLUDE "random.inc"
+
+    DATASEG
     lfsr DW 49f2h
     
-    .CODE
+    CODESEG
     
     ; PRNG
-    PUBLIC RandInit
-RandInit PROC
+PROC RandInit
     mov ax, 2c00h
     int 21h
-    mov lfsr, dx
+    mov [lfsr], dx
     ret
     ENDP
     
-    PUBLIC Rand
-Rand PROC
-    mov ax, lfsr
+PROC Rand
+    mov ax, [lfsr]
     and ax, 1h
-    shr lfsr,1 ; lsb
+    shr [lfsr],1 ; lsb
     cmp ax, 0
     jz done
-    mov ax, lfsr
+    mov ax, [lfsr]
     xor ax, 0d400h
-    mov lfsr, ax
+    mov [lfsr], ax
 done:
-    mov ax, lfsr
+    mov ax, [lfsr]
     ret
     ENDP
     END
