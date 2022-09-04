@@ -50,7 +50,6 @@ ProgramStart:
     mov ax, @data
     mov ds, ax
     mov es, ax
-    ASSUME es:@data, ds:@data
 
     call RandInit
     call ShuffleDeck
