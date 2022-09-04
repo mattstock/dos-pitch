@@ -6,16 +6,14 @@
     INCLUDE "random.inc"
     INCLUDE "misc.inc"
     INClUDE "video.inc"
+    INCLUDE "ai.inc"
+    INCLUDE "globals.inc"
     
     Heart       EQU 03h
     Diamond     EQU 04h
     Club        EQU 05h
     Spade       EQU 06h
 
-    DeckSize    EQU 52
-    MaxPlayers  EQU 4
-    HandSize    EQU 6
-    
     DEBUG       EQU 0
     
     DATASEG
@@ -31,6 +29,12 @@
                 DB 'A',06,'7',06,'8',06,'9',06,'0',06,'J',06,'Q',06,'K',06,'$$'
     TopIdx      DW Deck
 
+    ; As cards are used, Discard grows.  We track the active trick as the cards
+    ; between the Trick pointed and TopDiscard.
+    Discard     DB 2*DeckSize DUP(?)
+    TopDiscard  DW Discard
+    TrickPtr    DW Discard
+    
     Bid         DB 0
     Trick       DB 0
     Dealer      DB 0
@@ -63,7 +67,6 @@ GLOBAL PrintCard:PROC
 GLOBAL DrawHands:PROC
 GLOBAL PrintHands:PROC
 GLOBAL PlayerBid:PROC
-GLOBAL AiBid:PROC
 GLOBAL GetBids:PROC
 
 ProgramStart:   
@@ -105,10 +108,20 @@ gameloop:
     call GetBids
     call PrintCrLf
 
-    xor ax, ax
-    mov al, [Bid]
-    mov ah, [Pitcher]
-    call PrintHex
+    mov dx, OFFSET PlayerMsg
+    mov ah, 9
+    int 21h
+    mov ah, 2
+    mov dl, [Pitcher]
+    add dl, '1'
+    int 21h                             ; print player
+    mov ah, 9
+    mov dx, OFFSET PitcherBidMsg
+    int 21h
+    mov ah, 2
+    mov dl, [Bid]
+    add dl, '0'
+    int 21h                             ; and bid for trick
     call PrintCrLf
 
     ; exit to DOS
@@ -364,13 +377,6 @@ PROC PlayerBid
     pop ax
     ret
 ENDP PlayerBid
-
-; player index in al
-PROC AiBid
-    mov [Bid], 1
-    mov [Pitcher], al
-    ret
-ENDP AiBid
 
 END
 

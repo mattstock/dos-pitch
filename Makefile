@@ -1,14 +1,16 @@
 .asm.obj:
 	tasm /l $<
 
-cards.obj: random.inc misc.inc video.inc
+cards.obj: random.inc misc.inc video.inc ai.inc globals.inc
 
-random.obj: random.inc
+ai.obj: ai.inc ai.asm globals.inc
 
-misc.obj: misc.inc
+random.obj: random.inc random.asm
 
-video.obj: video.inc
+misc.obj: misc.inc misc.asm
 
-cards.exe: cards.obj random.obj misc.obj video.obj
+video.obj: video.inc video.asm
+
+cards.exe: cards.obj random.obj misc.obj video.obj ai.obj
 	tlink /v @cards.rsp
 
