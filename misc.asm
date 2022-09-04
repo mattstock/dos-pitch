@@ -12,10 +12,16 @@
     CODESEG
 
     ; al = byte to print
-    ;
-    ; destroys di, ax, bx, cx, dx
     PROC PrintHexByte
 
+    push ax
+    push bx
+    push cx
+    push dx
+    push es
+    mov bx, @data
+    mov es, bx
+    
     mov [Result+2], '$'  ; terminate string
     mov di, OFFSET Result+1
     std
@@ -35,6 +41,11 @@
     mov dx, OFFSET Result
     mov ah, 9
     int 21h
+    pop es
+    pop dx
+    pop cx
+    pop bx
+    pop ax
     ret
     ENDP PrintHexByte
     
@@ -99,4 +110,11 @@ ones:
     ret
     ENDP PrintCrLf
 
+    ; Reset to text mode and return to DOS
+    PROC CleanExit
+;    mov ax, 3
+;    int 10h
+    mov ah, 4ch
+    int 21h
+    ENDP CleanExit
 END

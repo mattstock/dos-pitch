@@ -1,0 +1,6 @@
+	IDEAL
+	MODEL small
+
+	GLOBAL VideoInit:PROC
+	GLOBAL DrawRect:PROC
+	

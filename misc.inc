@@ -4,6 +4,6 @@
 	GLOBAL PrintHex:PROC
 	GLOBAL PrintDecByte:PROC
 	GLOBAL PrintCrLf:PROC
-
+	GLOBAL CleanExit:PROC
 
 

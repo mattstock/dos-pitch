@@ -1,19 +1,14 @@
 .asm.obj:
 	tasm /l $<
 
-cards.obj: random.inc misc.inc
+cards.obj: random.inc misc.inc video.inc
 
 random.obj: random.inc
 
 misc.obj: misc.inc
 
-cards.exe: cards.obj random.obj misc.obj
+video.obj: video.inc
+
+cards.exe: cards.obj random.obj misc.obj video.obj
 	tlink /v @cards.rsp
 
-vidtest.exe: video.obj
-	tlink /v video.obj
-
-all: cards.exe vidtest.exe
-
-clean:
-	del *.OBJ *.LST *~ *.MAP *.EXE
