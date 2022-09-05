@@ -9,11 +9,6 @@
     INCLUDE "ai.inc"
     INCLUDE "globals.inc"
     
-    Heart       EQU 03h
-    Diamond     EQU 04h
-    Club        EQU 05h
-    Spade       EQU 06h
-
     DEBUG       EQU 0
     
     DATASEG
@@ -34,7 +29,8 @@
     Discard     DB 2*DeckSize DUP(?)
     TopDiscard  DW Discard
     TrickPtr    DW Discard
-    
+
+    Trump       DB ?
     Bid         DB 0
     Trick       DB 0
     Dealer      DB 0
@@ -206,6 +202,7 @@ gameloop:
 
     ; Print card in AX
     PROC PrintCard
+    push ax
     push dx
     mov dx, ax
     xchg dh, dl
@@ -222,6 +219,7 @@ plain:
     xchg dh, dl
     int 21h
     pop dx
+    pop ax
     ret
     ENDP PrintCard
 

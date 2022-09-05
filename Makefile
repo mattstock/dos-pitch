@@ -3,7 +3,7 @@
 
 cards.obj: random.inc misc.inc video.inc ai.inc globals.inc
 
-ai.obj: ai.inc ai.asm globals.inc
+ai.obj: ai.inc ai.asm globals.inc misc.inc
 
 random.obj: random.inc random.asm
 

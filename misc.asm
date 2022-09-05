@@ -19,6 +19,7 @@
     push cx
     push dx
     push es
+    push di
     mov bx, @data
     mov es, bx
     
@@ -41,6 +42,7 @@
     mov dx, OFFSET Result
     mov ah, 9
     int 21h
+    pop di
     pop es
     pop dx
     pop cx
