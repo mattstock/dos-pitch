@@ -96,7 +96,7 @@ GLOBAL RoundReport:PROC
 GLOBAL HumanPlay:PROC
 GLOBAL ClearCards:PROC
 GLOBAL ReportWin:PROC
-
+GLOBAL AddDiscard:PROC
     
 ProgramStart:
     ; command line args are here
@@ -146,7 +146,7 @@ ProgramStart:
     jnz @@trick
     
     ; for now, don't score the result
-    ;call ReportWin
+    call ReportWin
     ;call ClearCards     ; put in discard for winner
     ;mov [Pitcher], al   ; change who goes first
     
@@ -563,11 +563,8 @@ PROC HumanPlay
     cmp ah , 'x'
     je @@tryagain
     ; move the card to the next free slot
-    mov bl, [CurrentCnt]
-    xor bh, bh
-    mov [CurrentDis+bx], ax
-    inc [CurrentCnt]
     mov [Players+si], 'xx'
+    call AddDiscard
     pop si
     pop dx
     pop cx
@@ -576,11 +573,26 @@ PROC HumanPlay
     ret
 ENDP HumanPlay
 
+    ; add ax card onto discard stack
+PROC AddDiscard
+    push bx
+    mov bl, [CurrentCnt]
+    xor bh, bh
+    mov [CurrentDis+bx], ax
+    inc [CurrentCnt]
+    pop bx
+    ret
+ENDP AddDiscard
+    
+    ; al gets all of the cards in the pot
 PROC ClearCards
     ret
 ENDP ClearCards
 
+    ; See who won the trick
+    ; return the index of the player in al
 PROC ReportWin
+    ; see
     ret
 ENDP ReportWin
     

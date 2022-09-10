@@ -6,9 +6,9 @@
     INCLUDE "globals.inc"
     INCLUDE "misc.inc"
 
-    ; For debug
-GLOBAL PrintCard:PROC
-    
+GLOBAL AddDiscard:PROC    
+GLOBAL PrintCard:PROC    
+
     DATASEG
 
     Counters    DB 4 DUP(0)
@@ -143,8 +143,8 @@ PROC AiPlay
     jne @@loop2
     jmp @@done 
 @@found:
-    mov dx, 'xx'
-    mov [bx+si], dx
+    mov [WORD PTR bx+si], 'xx'
+    call AddDiscard
     call PrintCard
 @@done:    
     call PrintCrLf

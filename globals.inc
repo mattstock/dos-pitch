@@ -19,4 +19,3 @@
 	GLOBAL PlayerMsg:BYTE
 	GLOBAL Trump:BYTE
 	GLOBAL TrickCards:BYTE
-	
