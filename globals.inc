@@ -15,7 +15,7 @@
 
 	GLOBAL Bid:BYTE
 	GLOBAL Pitcher:BYTE
-	GLOBAL Players:WORD
+	GLOBAL Players[HandSize*MaxPlayers]:WORD
 	GLOBAL PlayerMsg:BYTE
 	GLOBAL Trump:BYTE
 	GLOBAL TrickCards:BYTE

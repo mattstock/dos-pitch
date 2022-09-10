@@ -29,6 +29,7 @@
     OldooHandlerOfs     DW ?
     
     ; Card deck structure
+    CardVals    DB '234567890JQKA'
     Deck        DB '2',03,'3',03,'4',03,'5',03,'6',03 
                 DB '2',04,'3',04,'4',04,'5',04,'6',04 
                 DB '2',05,'3',05,'4',05,'5',05,'6',05 
@@ -48,22 +49,22 @@
     
     ; Player tracking
     ; Human is always player 0 and initial dealer
-    Players     DW HandSize*MaxPlayers DUP('x?')
+    Players     DW HandSize*MaxPlayers DUP(?)
     Scores      DB MaxPlayers DUP(0)
 
-    CurrentP    DB 0                            ; current player during trick
-    CurrentDis  DW HandSize*MaxPlayers DUP(?)
+    CurrentTrick  DW MaxPlayers DUP(?)
+    EndPt       DB '$'
     CurrentCnt  DB 0
     
     ; Trick tracking
-    DiscardP1   DW HandSize*MaxPlayers DUP('??')
-    DiscardP2   DW HandSize*MaxPlayers DUP('??')
-    DiscardP3   DW HandSize*MaxPlayers DUP('??')
-    DiscardP4   DW HandSize*MaxPlayers DUP('??')
-    DisP1Cnt    DB 0
-    DisP2Cnt    DB 0
-    DisP3Cnt    DB 0
-    DisP4Cnt    DB 0
+    TricksP1    DW HandSize*MaxPlayers DUP('??')
+    TricksP2    DW HandSize*MaxPlayers DUP('??')
+    TricksP3    DW HandSize*MaxPlayers DUP('??')
+    TricksP4    DW HandSize*MaxPlayers DUP('??')
+    TricksP1Cnt DB 0
+    TricksP2Cnt DB 0
+    TricksP3Cnt DB 0
+    TricksP4Cnt DB 0
     
     ; Various game messages
     PlayerMsg   DB 'Player $'
@@ -96,7 +97,8 @@ GLOBAL RoundReport:PROC
 GLOBAL HumanPlay:PROC
 GLOBAL ClearCards:PROC
 GLOBAL ReportWin:PROC
-GLOBAL AddDiscard:PROC
+GLOBAL AddToTrick:PROC
+GLOBAL CompareCards:PROC
     
 ProgramStart:
     ; command line args are here
@@ -147,7 +149,7 @@ ProgramStart:
     
     ; for now, don't score the result
     call ReportWin
-    ;call ClearCards     ; put in discard for winner
+    call ClearCards     ; put in discard for winner
     ;mov [Pitcher], al   ; change who goes first
     
     dec ch
@@ -564,7 +566,7 @@ PROC HumanPlay
     je @@tryagain
     ; move the card to the next free slot
     mov [Players+si], 'xx'
-    call AddDiscard
+    call AddToTrick
     pop si
     pop dx
     pop cx
@@ -573,28 +575,94 @@ PROC HumanPlay
     ret
 ENDP HumanPlay
 
-    ; add ax card onto discard stack
-PROC AddDiscard
+    ; add ax card onto the trick stack
+PROC AddToTrick
     push bx
     mov bl, [CurrentCnt]
+    shl bl, 1
     xor bh, bh
-    mov [CurrentDis+bx], ax
+    mov [CurrentTrick+bx], ax
     inc [CurrentCnt]
     pop bx
     ret
-ENDP AddDiscard
+ENDP AddToTrick
     
     ; al gets all of the cards in the pot
 PROC ClearCards
+    mov [CurrentCnt], 0
     ret
 ENDP ClearCards
 
     ; See who won the trick
     ; return the index of the player in al
 PROC ReportWin
-    ; see
+    mov ax, 0                   ; al is current best
+    push ax
+    push dx
+    mov ah, 9
+    mov dx, OFFSET CurrentTrick
+    int 21h
+    call PrintCrLf
+    pop dx
+    pop ax
+@@loop:
+    call CompareCards           ; al is updated for best, ah is other player
+    inc ah
+    cmp ah, [NumPlayers]
+    jne @@loop
+
+    mov dl, al
+    add al, [Pitcher]
+    cmp al, [NumPlayers]
+    jb @@ok
+    sub al, [NumPlayers]
+@@ok:
+    call PrintPlayerMsg
+    push ax
+    mov al, dl
+    push ax
+    mov dl, ' '
+    DosCall DOS_WRITE_CHARACTER
+    pop ax
+    xor ah, ah
+    mov si, ax
+    shl si, 1
+    mov ax, [CurrentTrick+si]   ; winning card
+    call PrintCard
+    call PrintCrLf
+    pop ax
     ret
 ENDP ReportWin
+
+    ; al is current best card index
+    ; ah is index for comparison
+    ; update al is new card is better
+PROC CompareCards
+    push bx
+    push cx
+    push dx
+    xor bx, bx
+    mov bl, al
+    mov cx, [CurrentTrick+bx]   ; current winner
+    mov bl, ah
+    mov dx, [CurrentTrick+bx]   ; contender
+    cmp cl, [Trump]             
+    jne @@no1trump
+    cmp dl, [Trump]
+    jne @@done                  ; current winner is trump, no change
+@@testval:
+    ; two non-trump, so compare values
+    jmp @@done
+@@no1trump:
+    cmp dl, [Trump]
+    jne @@testval
+    mov al, ah                  ; new card is trump
+@@done:
+    pop dx
+    pop cx
+    pop bx
+    ret
+ENDP CompareCards
     
-END
+END ProgramStart
 

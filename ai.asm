@@ -6,7 +6,7 @@
     INCLUDE "globals.inc"
     INCLUDE "misc.inc"
 
-GLOBAL AddDiscard:PROC    
+GLOBAL AddToTrick:PROC    
 GLOBAL PrintCard:PROC    
 
     DATASEG
@@ -144,7 +144,7 @@ PROC AiPlay
     jmp @@done 
 @@found:
     mov [WORD PTR bx+si], 'xx'
-    call AddDiscard
+    call AddToTrick
     call PrintCard
 @@done:    
     call PrintCrLf
