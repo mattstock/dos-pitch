@@ -12,8 +12,9 @@ GLOBAL PrintCard:PROC
     DATASEG
 
     Counters    DB 4 DUP(0)
-    DebMsg      DB 'I found a $'
+    BidMsg      DB ' bids $'
     TmpPlayer   DB ?
+    PlayMsg     DB ' plays $'
     
     CODESEG
     
@@ -43,8 +44,7 @@ PROC AiBid
 @@look:
     cld
     lodsw               ; al is suit ah is card
-    call PrintCard
-    call PrintCrLf
+    ; Look for cards that make us want to up our bid strength
     cmp ah,'J'
     je @@bidup
     cmp ah,'2'
@@ -83,6 +83,21 @@ PROC AiBid
     mov [Trump], al
     add [Trump], Heart
     ; tell player the new bid
+    mov ah, 9
+    mov dx, OFFSET PlayerMsg
+    int 21h
+    mov ah, 2
+    mov dl, [Pitcher]
+    add dl, '1'
+    int 21h
+    mov ah, 9
+    mov dx, OFFSET BidMsg
+    int 21h
+    mov ah, 2
+    mov dl, [Bid]
+    add dl, '0'
+    int 21h
+    call PrintCrLf
 @@done:
     pop cx
     pop bx
@@ -92,5 +107,54 @@ PROC AiBid
     ret
 ENDP AiBid
 
+    ; cl is the player index
+PROC AiPlay
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    
+    mov dx, OFFSET PlayerMsg
+    mov ah, 9
+    int 21h                     ; player
+    mov dl, cl
+    add dl, '1'
+    mov ah, 2
+    int 21h                     ; X
+    mov ah, 9
+    mov dx, OFFSET PlayMsg
+    int 21h                     ; plays
+    
+    mov bx, OFFSET Players
+    xor ch, ch
+@@loop:
+    add bx, 2*HandSize
+    loop @@loop
+
+    ; for now, just pick the first available card
+    mov si, 0
+@@loop2:
+    mov ax, [bx+si]
+    cmp ax, 'xx'
+    jne @@found
+    add si, 2
+    cmp si, 2*HandSize
+    jne @@loop2
+    jmp @@done 
+@@found:
+    mov dx, 'xx'
+    mov [bx+si], dx
+    call PrintCard
+@@done:    
+    call PrintCrLf
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+ENDP AiPlay
+    
 END
     

@@ -1,5 +1,6 @@
 	IDEAL
 	MODEL small
 	GLOBAL AiBid:PROC
-
+	GLOBAL AiPlay:PROC
+	
 

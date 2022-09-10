@@ -2,6 +2,14 @@
     DOSSEG
     MODEL small
     STACK 200h
+
+    ; TASM macros and includes
+    INCLUDE "\tasm\imacros.mac"
+    INCLUDE "\tasm\bios.inc"
+    INCLUDE "\tasm\ibios.mac"
+    INCLUDE "\tasm\dos.inc"
+    INCLUDE "\tasm\idos.mac"
+    INCLUDE "\tasm\kbd.inc"
     
     INCLUDE "random.inc"
     INCLUDE "misc.inc"
@@ -13,6 +21,13 @@
     
     DATASEG
 
+    ; tracking random handler stuff
+    PspAddress          DW ?
+    Old1BHandlerSeg     DW ?
+    Old1BHandlerOfs     DW ?
+    Old00HandlerSeg     DW ?
+    OldooHandlerOfs     DW ?
+    
     ; Card deck structure
     Deck        DB '2',03,'3',03,'4',03,'5',03,'6',03 
                 DB '2',04,'3',04,'4',04,'5',04,'6',04 
@@ -23,24 +38,32 @@
                 DB 'A',05,'7',05,'8',05,'9',05,'0',05,'J',05,'Q',05,'K',05 
                 DB 'A',06,'7',06,'8',06,'9',06,'0',06,'J',06,'Q',06,'K',06,'$$'
     TopIdx      DW Deck
-
-    ; As cards are used, Discard grows.  We track the active trick as the cards
-    ; between the Trick pointed and TopDiscard.
-    Discard     DB 2*DeckSize DUP(?)
-    TopDiscard  DW Discard
-    TrickPtr    DW Discard
-
+    
     Trump       DB ?
     Bid         DB 0
     Trick       DB 0
     Dealer      DB 0
     Pitcher     DB ?
-    NumPlayers  DB 2
+    NumPlayers  DB 4
     
     ; Player tracking
     ; Human is always player 0 and initial dealer
     Players     DW HandSize*MaxPlayers DUP('x?')
     Scores      DB MaxPlayers DUP(0)
+
+    CurrentP    DB 0                            ; current player during trick
+    CurrentDis  DW HandSize*MaxPlayers DUP(?)
+    CurrentCnt  DB 0
+    
+    ; Trick tracking
+    DiscardP1   DW HandSize*MaxPlayers DUP('??')
+    DiscardP2   DW HandSize*MaxPlayers DUP('??')
+    DiscardP3   DW HandSize*MaxPlayers DUP('??')
+    DiscardP4   DW HandSize*MaxPlayers DUP('??')
+    DisP1Cnt    DB 0
+    DisP2Cnt    DB 0
+    DisP3Cnt    DB 0
+    DisP4Cnt    DB 0
     
     ; Various game messages
     PlayerMsg   DB 'Player $'
@@ -48,9 +71,12 @@
     ScoreMsg    DB ' score: $'
     TrickMsg    DB 'Trick: $'
     BidAsk      DB 'Your bid? $'
+    TrumpAsk    DB 'Your trump suit? $'
     BidMsg      DB ' bids: $'
+    CardMsg     DB 'Card? $'
+    CardsMsg    DB 'Your cards: $'
     BidErrMsg   DB 'Bid must be greater than high bid.$'
-    PitcherBidMsg       DB ' wins bidding with: $'
+    PitcherBidMsg       DB ' chooses trump $'
     
     CODESEG
 
@@ -63,82 +89,94 @@ GLOBAL PrintCard:PROC
 GLOBAL DrawHands:PROC
 GLOBAL PrintHands:PROC
 GLOBAL PlayerBid:PROC
+GLOBAL PlayerTrump:PROC
 GLOBAL GetBids:PROC
+GLOBAL AnnounceStart:PROC
+GLOBAL RoundReport:PROC
+GLOBAL HumanPlay:PROC
+GLOBAL ClearCards:PROC
+GLOBAL ReportWin:PROC
 
-ProgramStart:   
+    
+ProgramStart:
+    ; command line args are here
+    ;80h length, 81h is string
+    mov [PspAddress], es
+
+    ; ctrl-c handler
+    SetVector 23h, <seg Terminate>,<offset Terminate>
+    
     mov ax, @data
     mov ds, ax
 
     call RandInit
-gameloop:       
     call ShuffleDeck
 
+@@handloop:
     call DrawHands
     call PrintHands
 
-    ; Print trick info
-    mov dx, OFFSET TrickMsg
-    mov ah, 9
-    int 21h
-    mov al, [Trick]
-    call PrintDecByte
-    call PrintCrLf
+    call GetBids
 
-    xor bx, bx
-    xor cx, cx
-@@spl:
-    mov al, cl
-    call PrintPlayerMsg
-    mov dx, OFFSET ScoreMsg
-    mov ah, 9
-    int 21h
-    mov bx, OFFSET Scores
-    add bx, cx
-    mov al, [bx]
-    call PrintHexByte
-    call PrintCrLf
+    ; if player won, ask for trump
+    cmp [Pitcher], 0 
+    jne @@noprompt
+    call PlayerTrump
+@@noprompt:
+    call AnnounceStart    ; Print winner of bidding process
+
+    ; ch tracks round loop, cl tracks trick loop
+    mov ch, HandSize
+@@roundloop:
+    mov cl, [Pitcher]
+@@trick:
+    cmp cl, 0
+    jne @@aip
+    call HumanPlay
+    jmp @@next
+@@aip:
+    call AiPlay
+@@next:
     inc cl
     cmp cl, [NumPlayers]
-    jne @@spl
+    jne @@norot
+    xor cl, cl
+@@norot:
+    cmp cl, [Pitcher]
+    jnz @@trick
     
-    call GetBids
-    call PrintCrLf
-
-    mov dx, OFFSET PlayerMsg
-    mov ah, 9
-    int 21h
-    mov ah, 2
-    mov dl, [Pitcher]
-    add dl, '1'
-    int 21h                             ; print player
-    mov ah, 9
-    mov dx, OFFSET PitcherBidMsg
-    int 21h
-    mov ah, 2
-    mov dl, [Bid]
-    add dl, '0'
-    int 21h                             ; and bid for trick
-    call PrintCrLf
+    ; for now, don't score the result
+    ;call ReportWin
+    ;call ClearCards     ; put in discard for winner
+    ;mov [Pitcher], al   ; change who goes first
+    
+    dec ch
+    jnz @@roundloop
+    
+;    call ScoreResults
+    call RoundReport
 
     ; exit to DOS
-    call CleanExit
+    call Terminate
 
 
+PROC Terminate
+    DosCall DOS_TERMINATE_EXE
+ENDP Terminate
     
     ; PrintDeck
-    PROC PrintDeck
+PROC PrintDeck
     push dx
     push ax
     mov dx,OFFSET Deck
-    mov ah, 9
-    int 21h
+    DosCall DOS_WRITE_STRING
     pop ax
     pop dx
     ret
-    ENDP PrintDeck
+ENDP PrintDeck
     
     ; ShuffleDeck generates a random deck from the cards
-    PROC ShuffleDeck
+PROC ShuffleDeck
     push ax
     push bx
     push cx
@@ -173,10 +211,10 @@ gameloop:
     pop bx
     pop ax
     ret
-    ENDP ShuffleDeck
+ENDP ShuffleDeck
 
     ; Pick a card and return index in AX
-    PROC GetIndex
+PROC GetIndex
     push dx
     call Rand
     mov ah,0
@@ -186,11 +224,11 @@ gameloop:
     pop dx
     mov ah, 0
     ret
-    ENDP GetIndex
+ENDP GetIndex
 
     ; Grab top card from the deck
     ; Returns AX with card
-    PROC DrawCard
+PROC DrawCard
     push bx
     mov bx, [TopIdx]
     mov ax, [bx]
@@ -198,62 +236,61 @@ gameloop:
     pop bx
     xchg ah, al
     ret
-    ENDP DrawCard
+ENDP DrawCard
 
     ; Print card in AX
-    PROC PrintCard
+PROC PrintCard
     push ax
     push dx
     mov dx, ax
     xchg dh, dl
-    mov ah, 2
     ; if it's a 0 for 10, add an extra leading 1
     cmp dl, '0'
     jnz plain
     push dx
     mov dl, '1'
-    int 21h
+    DosCall DOS_WRITE_CHARACTER
     pop dx
 plain:  
-    int 21h
+    DosCall DOS_WRITE_CHARACTER
     xchg dh, dl
-    int 21h
+    DosCall DOS_WRITE_CHARACTER
     pop dx
     pop ax
     ret
-    ENDP PrintCard
+ENDP PrintCard
 
-    PROC DrawHands
+PROC DrawHands
     push di
     push ax
     push bx
     push cx
 
     mov bx, 0
-dh0:    
+@@dh0:    
     mov di, OFFSET Players
     add di, bx                  ; which card are we working with?
     xor cx, cx
     mov cl, [NumPlayers]
     push ax
-dh1:
+@@dh1:
     call DrawCard
     mov [di], ax                ; put card in player hand
     add di, HandSize*2          ; move to the next player
-    loop dh1
+    loop @@dh1
     pop ax
     add bx, 2
     cmp bx, HandSize*2
-    jnz dh0
+    jnz @@dh0
 
     pop cx
     pop bx
     pop ax
     pop di
     ret
-    ENDP DrawHands
+ENDP DrawHands
     
-    PROC PrintHands
+PROC PrintHands
     push si
     push ax
     push bx
@@ -261,45 +298,41 @@ dh1:
     push dx
     mov si, OFFSET Players
     mov bl, 0
-lp:
+@@lp:
     mov al, bl
     call PrintPlayerMsg
-    mov ah, 2
     mov dl, ':'
-    int 21h
+    DosCall DOS_WRITE_CHARACTER
     mov dl, ' '
-    int 21h
+    DosCall DOS_WRITE_CHARACTER
     mov cx, HandSize
-lph:    
+@@lph:    
     lodsw
     call PrintCard
-    mov ah, 2
     mov dl, ' '
-    int 21h
-    loop lph
+    DosCall DOS_WRITE_CHARACTER
+    loop @@lph
     call PrintCrLf
     inc bl
     cmp bl, [NumPlayers]
-    jnz lp
+    jnz @@lp
     pop dx
     pop cx
     pop bx
     pop ax
     pop si
     ret
-    ENDP PrintHands
+ENDP PrintHands
 
 ; al is the player index
 PROC PrintPlayerMsg
     push dx
     push ax
     mov dx, OFFSET PlayerMsg
-    mov ah, 9
-    int 21h
+    DosCall DOS_WRITE_STRING
     mov dl, '1'
     add dl, al
-    mov ah, 2
-    int 21h
+    DosCall DOS_WRITE_CHARACTER
     pop ax
     pop dx
     ret
@@ -370,11 +403,186 @@ PROC PlayerBid
     call PrintCrLf
     jmp @@bidask
 @@done:
+    call PrintCrLf
     pop dx
     pop bx
     pop ax
     ret
 ENDP PlayerBid
 
+PROC PlayerTrump
+    push ax
+    push dx
+@@trytrump:    
+    mov dx, OFFSET TrumpAsk
+    mov ah, 9
+    int 21h                     ; prompt
+    mov ah, 1
+    int 21h                     ; wait for d, s, h, c
+    cmp al, 's'
+    je @@spade
+    cmp al, 'd'
+    je @@diamond
+    cmp al, 'h'
+    je @@heart
+    cmp al, 'c'
+    je @@club
+    call PrintCrLf
+    jmp @@trytrump
+@@spade:
+    mov [Trump], Spade
+    jmp @@done
+@@diamond:
+    mov [Trump], Diamond
+    jmp @@done
+@@club:
+    mov [Trump], Club
+    jmp @@done
+@@heart:
+    mov [Trump], Heart
+@@done:
+    call PrintCrLf
+    pop dx
+    pop ax
+    ret
+ENDP PlayerTrump
+
+PROC AnnounceStart
+    push ax
+    push dx
+    mov dx, OFFSET PlayerMsg
+    mov ah, 9
+    int 21h
+    mov ah, 2
+    mov dl, [Pitcher]
+    add dl, '1'
+    int 21h                             ; print player
+    mov ah, 9
+    mov dx, OFFSET PitcherBidMsg
+    int 21h
+    mov ah, 2
+    mov dl, [Trump]
+    int 21h
+    call PrintCrLf
+    pop dx
+    pop ax
+    ret
+ENDP AnnounceStart
+
+PROC RoundReport
+    push ax
+    push bx
+    push cx
+    push dx
+    
+    ; Print trick info
+    mov dx, OFFSET TrickMsg
+    mov ah, 9
+    int 21h
+    mov al, [Trick]
+    call PrintDecByte
+    call PrintCrLf
+
+    xor bx, bx
+    xor cx, cx
+@@spl:
+    mov al, cl
+    call PrintPlayerMsg
+    mov dx, OFFSET ScoreMsg
+    mov ah, 9
+    int 21h
+    mov bx, OFFSET Scores
+    add bx, cx
+    mov al, [bx]
+    call PrintHexByte
+    call PrintCrLf
+    inc cl
+    cmp cl, [NumPlayers]
+    jne @@spl
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+ENDP RoundReport
+
+PROC HumanPlay
+    ; print the human player's remaining cards
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    mov ah, 9
+    mov dx, OFFSET CardsMsg
+    int 21h
+    mov cx, HandSize
+    mov si, OFFSET Players
+    cld
+@@ploop:
+    lodsw
+    cmp ah, 'x'
+    je @@foo
+    push ax
+    mov ah, 2
+    mov dl, '1'
+    add dl, HandSize
+    sub dl, cl
+    int 21h
+    mov dl, ':'
+    int 21h
+    pop ax
+    call PrintCard
+    mov ah, 2
+    mov dl, ' '
+    int 21h
+@@foo:
+    loop @@ploop
+    call PrintCrLf
+
+@@tryagain:
+    ; ask for a card
+    mov ah, 9
+    mov dx, OFFSET CardMsg
+    int 21h
+
+    ; Prompt for card
+    mov ah, 1
+    int 21h
+    call PrintCrLf
+    ; al is the key
+    xor ah, ah
+    sub al, '1'
+    cmp al, HandSize
+    ja @@tryagain
+    cmp al, 0
+    jb @@tryagain
+    shl ax, 1
+    mov si, ax
+    mov ax, [Players+si]
+    cmp ah , 'x'
+    je @@tryagain
+    ; move the card to the next free slot
+    mov bl, [CurrentCnt]
+    xor bh, bh
+    mov [CurrentDis+bx], ax
+    inc [CurrentCnt]
+    mov [Players+si], 'xx'
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+ENDP HumanPlay
+
+PROC ClearCards
+    ret
+ENDP ClearCards
+
+PROC ReportWin
+    ret
+ENDP ReportWin
+    
 END
 

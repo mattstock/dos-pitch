@@ -1,5 +1,5 @@
 .asm.obj:
-	tasm /l $<
+	tasm /m /l $<
 
 cards.obj: random.inc misc.inc video.inc ai.inc globals.inc
 
