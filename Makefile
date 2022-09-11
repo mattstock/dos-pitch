@@ -1,7 +1,12 @@
+all: cards.exe
+
+cards.exe: cards.obj random.obj misc.obj video.obj ai.obj player.obj debug.obj
+	tlink /v @cards.rsp
+
 .asm.obj:
 	tasm /m /l $<
 
-cards.obj: random.inc misc.inc video.inc ai.inc globals.inc
+cards.obj: random.inc misc.inc video.inc ai.inc globals.inc player.inc debug.inc
 
 ai.obj: ai.inc ai.asm globals.inc misc.inc
 
@@ -11,6 +16,7 @@ misc.obj: misc.inc misc.asm
 
 video.obj: video.inc video.asm
 
-cards.exe: cards.obj random.obj misc.obj video.obj ai.obj
-	tlink /v @cards.rsp
+player.obj: player.inc player.asm
+
+debug.obj: debug.inc debug.asm
 

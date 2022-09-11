@@ -12,9 +12,7 @@ GLOBAL PrintCard:PROC
     DATASEG
 
     Counters    DB 4 DUP(0)
-    BidMsg      DB ' bids $'
     TmpPlayer   DB ?
-    PlayMsg     DB ' plays $'
     
     CODESEG
     
@@ -125,12 +123,15 @@ PROC AiPlay
     mov ah, 9
     mov dx, OFFSET PlayMsg
     int 21h                     ; plays
-    
+
+    ; Get AI hand reference into bx
     mov bx, OFFSET Players
     xor ch, ch
+    push cx
 @@loop:
     add bx, 2*HandSize
     loop @@loop
+    pop cx
 
     ; for now, just pick the first available card
     mov si, 0
@@ -144,6 +145,7 @@ PROC AiPlay
     jmp @@done 
 @@found:
     mov [WORD PTR bx+si], 'xx'
+    mov bx, cx
     call AddToTrick
     call PrintCard
 @@done:    

@@ -15,6 +15,7 @@
     INCLUDE "misc.inc"
     INClUDE "video.inc"
     INCLUDE "ai.inc"
+    INCLUDE "player.inc"
     INCLUDE "globals.inc"
     
     DEBUG       EQU 0
@@ -71,34 +72,27 @@
     TopMsg      DB 'Top of deck: $'
     ScoreMsg    DB ' score: $'
     TrickMsg    DB 'Trick: $'
-    BidAsk      DB 'Your bid? $'
-    TrumpAsk    DB 'Your trump suit? $'
-    BidMsg      DB ' bids: $'
-    CardMsg     DB 'Card? $'
-    CardsMsg    DB 'Your cards: $'
-    BidErrMsg   DB 'Bid must be greater than high bid.$'
     PitcherBidMsg       DB ' chooses trump $'
+    WinTrickStr DB ' wins trick with $'
+    BidMsg      DB ' bids $'
+    PlayMsg     DB ' plays $'
+    Separator   DB 20 DUP('-'),'$'
     
-    CODESEG
+CODESEG
 
 GLOBAL GetIndex:PROC
-GLOBAL PrintDeck:PROC
-GLOBAL PrintPlayerMsg:PROC
 GLOBAL ShuffleDeck:PROC
 GLOBAL DrawCard:PROC
-GLOBAL PrintCard:PROC
 GLOBAL DrawHands:PROC
 GLOBAL PrintHands:PROC
-GLOBAL PlayerBid:PROC
-GLOBAL PlayerTrump:PROC
 GLOBAL GetBids:PROC
 GLOBAL AnnounceStart:PROC
 GLOBAL RoundReport:PROC
-GLOBAL HumanPlay:PROC
 GLOBAL ClearCards:PROC
 GLOBAL ReportWin:PROC
-GLOBAL AddToTrick:PROC
 GLOBAL CompareCards:PROC
+GLOBAL PrintTrick:PROC
+GLOBAL PrintCompare:PROC
     
 ProgramStart:
     ; command line args are here
@@ -130,6 +124,13 @@ ProgramStart:
     ; ch tracks round loop, cl tracks trick loop
     mov ch, HandSize
 @@roundloop:
+    push ax
+    push dx
+    mov dx, OFFSET Separator
+    DosCall DOS_WRITE_STRING
+    call PrintCrLf
+    pop dx
+    pop ax
     mov cl, [Pitcher]
 @@trick:
     cmp cl, 0
@@ -147,8 +148,7 @@ ProgramStart:
     cmp cl, [Pitcher]
     jnz @@trick
     
-    ; for now, don't score the result
-    call ReportWin
+    call ReportWin      ; see who get high card and takes the trick
     call ClearCards     ; put in discard for winner
     ;mov [Pitcher], al   ; change who goes first
     
@@ -166,16 +166,6 @@ PROC Terminate
     DosCall DOS_TERMINATE_EXE
 ENDP Terminate
     
-    ; PrintDeck
-PROC PrintDeck
-    push dx
-    push ax
-    mov dx,OFFSET Deck
-    DosCall DOS_WRITE_STRING
-    pop ax
-    pop dx
-    ret
-ENDP PrintDeck
     
     ; ShuffleDeck generates a random deck from the cards
 PROC ShuffleDeck
@@ -326,20 +316,6 @@ PROC PrintHands
     ret
 ENDP PrintHands
 
-; al is the player index
-PROC PrintPlayerMsg
-    push dx
-    push ax
-    mov dx, OFFSET PlayerMsg
-    DosCall DOS_WRITE_STRING
-    mov dl, '1'
-    add dl, al
-    DosCall DOS_WRITE_CHARACTER
-    pop ax
-    pop dx
-    ret
-ENDP PrintPlayerMsg
-
 ; Ask players for bids, ending on the dealer.
 ; Resulting bid value stored in Bid variable.
 ; Player 0 (player) is asked for bid via kbd.
@@ -377,77 +353,6 @@ PROC GetBids
     ret
 ENDP GetBids
 
-; Ask the player for a bid
-PROC PlayerBid
-    push ax
-    push bx
-    push dx
-@@bidask:
-    mov dx, OFFSET BidAsk
-    mov ah, 9
-    int 21h                     ; prompt
-    mov ah, 1
-    int 21h                     ; wait for 0,1,2,3,4
-    sub al, '0'
-    cmp al, 0
-    jz @@done                   ; pass
-    cmp al, [Bid]               ; needs to be larger than current bid
-    jbe @@err
-    cmp al, 4
-    ja @@err
-    mov [Bid], al
-    mov [Pitcher], 0
-    jmp @@done
-@@err:
-    mov dx, OFFSET BidErrMsg
-    mov ah, 9
-    int 21h                     ; for shame
-    call PrintCrLf
-    jmp @@bidask
-@@done:
-    call PrintCrLf
-    pop dx
-    pop bx
-    pop ax
-    ret
-ENDP PlayerBid
-
-PROC PlayerTrump
-    push ax
-    push dx
-@@trytrump:    
-    mov dx, OFFSET TrumpAsk
-    mov ah, 9
-    int 21h                     ; prompt
-    mov ah, 1
-    int 21h                     ; wait for d, s, h, c
-    cmp al, 's'
-    je @@spade
-    cmp al, 'd'
-    je @@diamond
-    cmp al, 'h'
-    je @@heart
-    cmp al, 'c'
-    je @@club
-    call PrintCrLf
-    jmp @@trytrump
-@@spade:
-    mov [Trump], Spade
-    jmp @@done
-@@diamond:
-    mov [Trump], Diamond
-    jmp @@done
-@@club:
-    mov [Trump], Club
-    jmp @@done
-@@heart:
-    mov [Trump], Heart
-@@done:
-    call PrintCrLf
-    pop dx
-    pop ax
-    ret
-ENDP PlayerTrump
 
 PROC AnnounceStart
     push ax
@@ -508,121 +413,68 @@ PROC RoundReport
     ret
 ENDP RoundReport
 
-PROC HumanPlay
-    ; print the human player's remaining cards
-    push ax
-    push bx
-    push cx
-    push dx
-    push si
-    mov ah, 9
-    mov dx, OFFSET CardsMsg
-    int 21h
-    mov cx, HandSize
-    mov si, OFFSET Players
-    cld
-@@ploop:
-    lodsw
-    cmp ah, 'x'
-    je @@foo
-    push ax
-    mov ah, 2
-    mov dl, '1'
-    add dl, HandSize
-    sub dl, cl
-    int 21h
-    mov dl, ':'
-    int 21h
-    pop ax
-    call PrintCard
-    mov ah, 2
-    mov dl, ' '
-    int 21h
-@@foo:
-    loop @@ploop
-    call PrintCrLf
-
-@@tryagain:
-    ; ask for a card
-    mov ah, 9
-    mov dx, OFFSET CardMsg
-    int 21h
-
-    ; Prompt for card
-    mov ah, 1
-    int 21h
-    call PrintCrLf
-    ; al is the key
-    xor ah, ah
-    sub al, '1'
-    cmp al, HandSize
-    ja @@tryagain
-    cmp al, 0
-    jb @@tryagain
-    shl ax, 1
-    mov si, ax
-    mov ax, [Players+si]
-    cmp ah , 'x'
-    je @@tryagain
-    ; move the card to the next free slot
-    mov [Players+si], 'xx'
-    call AddToTrick
-    pop si
-    pop dx
-    pop cx
-    pop bx
-    pop ax
-    ret
-ENDP HumanPlay
-
-    ; add ax card onto the trick stack
+    ; add ax card onto the trick
+    ; bx is player index
 PROC AddToTrick
     push bx
-    mov bl, [CurrentCnt]
     shl bl, 1
     xor bh, bh
     mov [CurrentTrick+bx], ax
-    inc [CurrentCnt]
     pop bx
     ret
 ENDP AddToTrick
     
     ; al gets all of the cards in the pot
+    ; for now, just wipe it all
 PROC ClearCards
-    mov [CurrentCnt], 0
+    push ax
+    push cx
+    push di
+    mov cl, [NumPlayers]
+    xor ch, ch
+    mov di, OFFSET CurrentTrick
+    cld
+    mov ax, '  '
+@@loop:
+    stosw
+    loop @@loop
+    pop di
+    pop cx
+    pop ax
     ret
 ENDP ClearCards
 
-    ; See who won the trick
-    ; return the index of the player in al
-PROC ReportWin
-    mov ax, 0                   ; al is current best
+    ; debug output of current trick pile
+PROC PrintTrick
     push ax
     push dx
-    mov ah, 9
     mov dx, OFFSET CurrentTrick
-    int 21h
+    DosCall DOS_WRITE_STRING
     call PrintCrLf
     pop dx
     pop ax
+    ret
+ENDP PrintTrick
+    
+    ; See who won the trick
+    ; return the index of the player in al
+PROC ReportWin
+    push dx
+    mov ax, 100h                ; start with player 0 as best
+
+    call PrintTrick
 @@loop:
     call CompareCards           ; al is updated for best, ah is other player
+    call PrintCompare
     inc ah
     cmp ah, [NumPlayers]
     jne @@loop
-
-    mov dl, al
-    add al, [Pitcher]
-    cmp al, [NumPlayers]
-    jb @@ok
-    sub al, [NumPlayers]
-@@ok:
-    call PrintPlayerMsg
+    ; should have max card index in al now
+    call PrintPlayerMsg         ; Player x
     push ax
-    mov al, dl
     push ax
-    mov dl, ' '
-    DosCall DOS_WRITE_CHARACTER
+    mov dx, OFFSET WinTrickStr  ; wins trick with
+    DosCall DOS_WRITE_STRING
     pop ax
     xor ah, ah
     mov si, ax
@@ -630,7 +482,9 @@ PROC ReportWin
     mov ax, [CurrentTrick+si]   ; winning card
     call PrintCard
     call PrintCrLf
+    call PrintCrLf
     pop ax
+    pop dx
     ret
 ENDP ReportWin
 
@@ -641,28 +495,74 @@ PROC CompareCards
     push bx
     push cx
     push dx
+    push di
     xor bx, bx
     mov bl, al
+    shl bl, 1
     mov cx, [CurrentTrick+bx]   ; current winner
     mov bl, ah
+    shl bl, 1
     mov dx, [CurrentTrick+bx]   ; contender
     cmp cl, [Trump]             
     jne @@no1trump
     cmp dl, [Trump]
     jne @@done                  ; current winner is trump, no change
 @@testval:
-    ; two non-trump, so compare values
+    ; two trump or two non-trump, so compare values
+    ; find ch in card list, then dh and see which is bigger
+    ; search ch in CardVals
+    ; search dh in CardVals
+    ; to use scasb, it compares al to [es:di], so we need to move a few things
+    push ax
+    mov al, ch
+    cld
+    mov di, OFFSET CardVals
+    mov cx, 13
+@@scloop1:
+    scasb
+    je @@f1
+    loop @@scloop1
+@@f1:
+    mov al, dh
+    mov cx, 13
+    mov dx, di          ; save for later
+    mov di, OFFSET CardVals
+@@scloop2:
+    scasb
+    je @@f2
+    loop @@scloop2
+@@f2:
+    pop ax
+    cmp dx, di          ; which value is larger?
+    jb @@newwinner
     jmp @@done
 @@no1trump:
     cmp dl, [Trump]
     jne @@testval
+@@newwinner:
     mov al, ah                  ; new card is trump
 @@done:
+    pop di
     pop dx
     pop cx
     pop bx
     ret
 ENDP CompareCards
+
+    ; al is the best index so far
+    ; ah is the one we just looked at
+PROC PrintCompare
+    push ax
+    push bx
+    push cx
+    push dx
     
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+ENDP PrintCompare
+
 END ProgramStart
 
