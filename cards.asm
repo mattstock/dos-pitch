@@ -17,18 +17,12 @@
     INCLUDE "ai.inc"
     INCLUDE "player.inc"
     INCLUDE "globals.inc"
+    INCLUDE "debug.inc"
     
     DEBUG       EQU 0
     
     DATASEG
 
-    ; tracking random handler stuff
-    PspAddress          DW ?
-    Old1BHandlerSeg     DW ?
-    Old1BHandlerOfs     DW ?
-    Old00HandlerSeg     DW ?
-    OldooHandlerOfs     DW ?
-    
     ; Card deck structure
     CardVals    DB '234567890JQKA'
     Deck        DB '2',03,'3',03,'4',03,'5',03,'6',03 
@@ -55,7 +49,6 @@
 
     CurrentTrick  DW MaxPlayers DUP(?)
     EndPt       DB '$'
-    CurrentCnt  DB 0
     
     ; Trick tracking
     TricksP1    DW HandSize*MaxPlayers DUP('??')
@@ -68,11 +61,7 @@
     TricksP4Cnt DB 0
     
     ; Various game messages
-    PlayerMsg   DB 'Player $'
     TopMsg      DB 'Top of deck: $'
-    ScoreMsg    DB ' score: $'
-    TrickMsg    DB 'Trick: $'
-    PitcherBidMsg       DB ' chooses trump $'
     WinTrickStr DB ' wins trick with $'
     BidMsg      DB ' bids $'
     PlayMsg     DB ' plays $'
@@ -84,23 +73,18 @@ GLOBAL GetIndex:PROC
 GLOBAL ShuffleDeck:PROC
 GLOBAL DrawCard:PROC
 GLOBAL DrawHands:PROC
-GLOBAL PrintHands:PROC
 GLOBAL GetBids:PROC
-GLOBAL AnnounceStart:PROC
-GLOBAL RoundReport:PROC
 GLOBAL ClearCards:PROC
 GLOBAL ReportWin:PROC
 GLOBAL CompareCards:PROC
-GLOBAL PrintTrick:PROC
-GLOBAL PrintCompare:PROC
     
 ProgramStart:
     ; command line args are here
     ;80h length, 81h is string
-    mov [PspAddress], es
+    ;mov [PspAddress], es
 
     ; ctrl-c handler
-    SetVector 23h, <seg Terminate>,<offset Terminate>
+    ;SetVector 23h, <seg Terminate>,<offset Terminate>
     
     mov ax, @data
     mov ds, ax
@@ -165,7 +149,6 @@ ProgramStart:
 PROC Terminate
     DosCall DOS_TERMINATE_EXE
 ENDP Terminate
-    
     
     ; ShuffleDeck generates a random deck from the cards
 PROC ShuffleDeck
@@ -282,40 +265,6 @@ PROC DrawHands
     ret
 ENDP DrawHands
     
-PROC PrintHands
-    push si
-    push ax
-    push bx
-    push cx
-    push dx
-    mov si, OFFSET Players
-    mov bl, 0
-@@lp:
-    mov al, bl
-    call PrintPlayerMsg
-    mov dl, ':'
-    DosCall DOS_WRITE_CHARACTER
-    mov dl, ' '
-    DosCall DOS_WRITE_CHARACTER
-    mov cx, HandSize
-@@lph:    
-    lodsw
-    call PrintCard
-    mov dl, ' '
-    DosCall DOS_WRITE_CHARACTER
-    loop @@lph
-    call PrintCrLf
-    inc bl
-    cmp bl, [NumPlayers]
-    jnz @@lp
-    pop dx
-    pop cx
-    pop bx
-    pop ax
-    pop si
-    ret
-ENDP PrintHands
-
 ; Ask players for bids, ending on the dealer.
 ; Resulting bid value stored in Bid variable.
 ; Player 0 (player) is asked for bid via kbd.
@@ -354,65 +303,6 @@ PROC GetBids
 ENDP GetBids
 
 
-PROC AnnounceStart
-    push ax
-    push dx
-    mov dx, OFFSET PlayerMsg
-    mov ah, 9
-    int 21h
-    mov ah, 2
-    mov dl, [Pitcher]
-    add dl, '1'
-    int 21h                             ; print player
-    mov ah, 9
-    mov dx, OFFSET PitcherBidMsg
-    int 21h
-    mov ah, 2
-    mov dl, [Trump]
-    int 21h
-    call PrintCrLf
-    pop dx
-    pop ax
-    ret
-ENDP AnnounceStart
-
-PROC RoundReport
-    push ax
-    push bx
-    push cx
-    push dx
-    
-    ; Print trick info
-    mov dx, OFFSET TrickMsg
-    mov ah, 9
-    int 21h
-    mov al, [Trick]
-    call PrintDecByte
-    call PrintCrLf
-
-    xor bx, bx
-    xor cx, cx
-@@spl:
-    mov al, cl
-    call PrintPlayerMsg
-    mov dx, OFFSET ScoreMsg
-    mov ah, 9
-    int 21h
-    mov bx, OFFSET Scores
-    add bx, cx
-    mov al, [bx]
-    call PrintHexByte
-    call PrintCrLf
-    inc cl
-    cmp cl, [NumPlayers]
-    jne @@spl
-    pop dx
-    pop cx
-    pop bx
-    pop ax
-    ret
-ENDP RoundReport
-
     ; add ax card onto the trick
     ; bx is player index
 PROC AddToTrick
@@ -435,6 +325,7 @@ PROC ClearCards
     mov di, OFFSET CurrentTrick
     cld
     mov ax, '  '
+    ;; TODO
 @@loop:
     stosw
     loop @@loop
@@ -444,18 +335,6 @@ PROC ClearCards
     ret
 ENDP ClearCards
 
-    ; debug output of current trick pile
-PROC PrintTrick
-    push ax
-    push dx
-    mov dx, OFFSET CurrentTrick
-    DosCall DOS_WRITE_STRING
-    call PrintCrLf
-    pop dx
-    pop ax
-    ret
-ENDP PrintTrick
-    
     ; See who won the trick
     ; return the index of the player in al
 PROC ReportWin
@@ -548,21 +427,6 @@ PROC CompareCards
     pop bx
     ret
 ENDP CompareCards
-
-    ; al is the best index so far
-    ; ah is the one we just looked at
-PROC PrintCompare
-    push ax
-    push bx
-    push cx
-    push dx
-    
-    pop dx
-    pop cx
-    pop bx
-    pop ax
-    ret
-ENDP PrintCompare
 
 END ProgramStart
 

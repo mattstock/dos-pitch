@@ -8,7 +8,7 @@ cards.exe: cards.obj random.obj misc.obj video.obj ai.obj player.obj debug.obj
 
 cards.obj: random.inc misc.inc video.inc ai.inc globals.inc player.inc debug.inc
 
-ai.obj: ai.inc ai.asm globals.inc misc.inc
+ai.obj: ai.inc ai.asm globals.inc misc.inc player.inc
 
 random.obj: random.inc random.asm
 

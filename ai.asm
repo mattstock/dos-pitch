@@ -4,6 +4,7 @@
 
     INCLUDE "ai.inc"
     INCLUDE "globals.inc"
+    INCLUDE "player.inc"
     INCLUDE "misc.inc"
 
 GLOBAL AddToTrick:PROC    
@@ -81,13 +82,10 @@ PROC AiBid
     mov [Trump], al
     add [Trump], Heart
     ; tell player the new bid
-    mov ah, 9
-    mov dx, OFFSET PlayerMsg
-    int 21h
-    mov ah, 2
-    mov dl, [Pitcher]
-    add dl, '1'
-    int 21h
+    push ax
+    mov al, [Pitcher]
+    call PrintPlayerMsg
+    pop ax
     mov ah, 9
     mov dx, OFFSET BidMsg
     int 21h
@@ -112,14 +110,9 @@ PROC AiPlay
     push cx
     push dx
     push si
-    
-    mov dx, OFFSET PlayerMsg
-    mov ah, 9
-    int 21h                     ; player
-    mov dl, cl
-    add dl, '1'
-    mov ah, 2
-    int 21h                     ; X
+
+    mov al, cl
+    call PrintPlayerMsg
     mov ah, 9
     mov dx, OFFSET PlayMsg
     int 21h                     ; plays

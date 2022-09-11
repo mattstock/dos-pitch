@@ -21,6 +21,10 @@
     CardMsg     DB 'Card? $'
     CardsMsg    DB 'Your cards: $'
     BidErrMsg   DB 'Bid must be greater than high bid.$'
+    ScoreMsg    DB ' score: $'
+    TrickMsg    DB 'Trick: $'
+    PitcherBidMsg       DB ' chooses trump $'
+    PlayerMsg   DB 'Player $'
 
     CODESEG
     
@@ -192,6 +196,65 @@ PROC HumanPlay
     pop ax
     ret
 ENDP HumanPlay
+
+PROC AnnounceStart
+    push ax
+    push dx
+    mov dx, OFFSET PlayerMsg
+    mov ah, 9
+    int 21h
+    mov ah, 2
+    mov dl, [Pitcher]
+    add dl, '1'
+    int 21h                             ; print player
+    mov ah, 9
+    mov dx, OFFSET PitcherBidMsg
+    int 21h
+    mov ah, 2
+    mov dl, [Trump]
+    int 21h
+    call PrintCrLf
+    pop dx
+    pop ax
+    ret
+ENDP AnnounceStart
+
+PROC RoundReport
+    push ax
+    push bx
+    push cx
+    push dx
+    
+    ; Print trick info
+    mov dx, OFFSET TrickMsg
+    mov ah, 9
+    int 21h
+    mov al, [Trick]
+    call PrintDecByte
+    call PrintCrLf
+
+    xor bx, bx
+    xor cx, cx
+@@spl:
+    mov al, cl
+    call PrintPlayerMsg
+    mov dx, OFFSET ScoreMsg
+    mov ah, 9
+    int 21h
+    mov bx, OFFSET Scores
+    add bx, cx
+    mov al, [bx]
+    call PrintHexByte
+    call PrintCrLf
+    inc cl
+    cmp cl, [NumPlayers]
+    jne @@spl
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+ENDP RoundReport
     
 END
     
