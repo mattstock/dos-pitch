@@ -26,4 +26,4 @@
 	
 	GLOBAL AddToTrick:PROC
 	GLOBAL PrintCard:PROC
-	
+	GLOBAL TrickLookup:PROC

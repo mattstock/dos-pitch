@@ -23,6 +23,8 @@
     Old1BHandlerOfs     DW ?
     Old00HandlerSeg     DW ?
     Old00HandlerOfs     DW ?
+
+    VsMsg               DB ' vs $'
     
     CODESEG
     
@@ -83,20 +85,53 @@ PROC PrintHands
     ret
 ENDP PrintHands
 
+    ; al is player
+    ; look up in the CurrentTrick and print the card
+PROC PrintPlayerTrick
+    push ax
+    push di
+
+    call TrickLookup
+    call PrintCard
+
+    pop di
+    pop ax
+    ret
+ENDP PrintPlayerTrick
+
     ; al is the best index so far
     ; ah is the one we just looked at
 PROC PrintCompare
     push ax
-    push bx
-    push cx
     push dx
-    
+
+    push ax
+    call PrintPlayerTrick
+    mov dx, OFFSET VsMsg
+    DosCall DOS_WRITE_STRING
+    pop ax
+    mov al, ah
+    call PrintPlayerTrick
+    mov dl, ':'
+    DosCall DOS_WRITE_CHARACTER
+    mov dl, ' '
+    DosCall DOS_WRITE_CHARACTER
+
     pop dx
-    pop cx
-    pop bx
     pop ax
     ret
 ENDP PrintCompare    
+
+    ; print al
+PROC PrintChar
+    push ax
+    push dx
+    mov dl, al
+    DosCall DOS_WRITE_CHARACTER
+    pop dx
+    pop ax
+    ret    
+ENDP PrintChar
     
 END
     

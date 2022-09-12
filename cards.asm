@@ -77,6 +77,7 @@ GLOBAL GetBids:PROC
 GLOBAL ClearCards:PROC
 GLOBAL ReportWin:PROC
 GLOBAL CompareCards:PROC
+GLOBAL SearchValue:PROC
     
 ProgramStart:
     ; command line args are here
@@ -88,6 +89,7 @@ ProgramStart:
     
     mov ax, @data
     mov ds, ax
+    mov es, ax
 
     call RandInit
     call ShuffleDeck
@@ -344,7 +346,6 @@ PROC ReportWin
     call PrintTrick
 @@loop:
     call CompareCards           ; al is updated for best, ah is other player
-    call PrintCompare
     inc ah
     cmp ah, [NumPlayers]
     jne @@loop
@@ -367,6 +368,39 @@ PROC ReportWin
     ret
 ENDP ReportWin
 
+    ; given index in al, return the card in ax
+PROC TrickLookup
+    push bx
+    xor bx, bx
+    mov bl, al
+    shl bl, 1
+    mov ax, [CurrentTrick+bx]   ; current winner
+    pop bx
+    ret
+ENDP TrickLookup
+
+    ; look for the value in al in the Card list and return the index in al
+    ; return ff if it's not found
+PROC SearchValue
+    push cx
+    push di
+    cld
+    mov di, OFFSET CardVals
+    mov cx, 13
+    repne scasb
+    je @@found
+    mov al, '!'
+    call PrintChar
+    mov al, 0ffh
+@@found:
+    sub di, OFFSET CardVals
+    dec di
+    mov ax, di
+    pop di
+    pop cx
+    ret
+ENDP SearchValue
+
     ; al is current best card index
     ; ah is index for comparison
     ; update al is new card is better
@@ -374,54 +408,45 @@ PROC CompareCards
     push bx
     push cx
     push dx
-    push di
-    xor bx, bx
-    mov bl, al
-    shl bl, 1
-    mov cx, [CurrentTrick+bx]   ; current winner
-    mov bl, ah
-    shl bl, 1
-    mov dx, [CurrentTrick+bx]   ; contender
+
+    call PrintCompare
+
+    ; pull in the two cards l is suit, and h is the value
+    mov bx, ax
+    call TrickLookup
+    mov cx, ax                  ; cx is current high card
+    mov al, bh
+    call TrickLookup
+    mov dx, ax                  ; dx is contender card
+    mov ax, bx                  ; al is current player index, ah contender
+    
     cmp cl, [Trump]             
-    jne @@no1trump
+    jne @@nocurrenttrump        ; current winner doesn't have trump
     cmp dl, [Trump]
-    jne @@done                  ; current winner is trump, no change
+    jne @@done                  ; current winner has trump, contender doesn't
 @@testval:
-    ; two trump or two non-trump, so compare values
+    ; two trump (from above) or two non-trump (below), so compare values
     ; find ch in card list, then dh and see which is bigger
-    ; search ch in CardVals
-    ; search dh in CardVals
-    ; to use scasb, it compares al to [es:di], so we need to move a few things
     push ax
     mov al, ch
-    cld
-    mov di, OFFSET CardVals
-    mov cx, 13
-@@scloop1:
-    scasb
-    je @@f1
-    loop @@scloop1
-@@f1:
+    call SearchValue
+    mov bl, al          ; bl is index of current value
+    
     mov al, dh
-    mov cx, 13
-    mov dx, di          ; save for later
-    mov di, OFFSET CardVals
-@@scloop2:
-    scasb
-    je @@f2
-    loop @@scloop2
-@@f2:
+    call SearchValue
+    mov bh, al          ; bh is index of contender value
     pop ax
-    cmp dx, di          ; which value is larger?
-    jb @@newwinner
+    cmp bh, bl          ; which value is larger?
+    ja @@newwinner
     jmp @@done
-@@no1trump:
+@@nocurrenttrump:
     cmp dl, [Trump]
-    jne @@testval
+    jne @@testval                ; two non-trump, so look at the card values
 @@newwinner:
     mov al, ah                  ; new card is trump
 @@done:
-    pop di
+    call PrintPlayerTrick
+    call PrintCrLf
     pop dx
     pop cx
     pop bx
