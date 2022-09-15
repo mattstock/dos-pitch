@@ -39,18 +39,6 @@ PROC PrintDeck
     ret
 ENDP PrintDeck
 
-    ; debug output of current trick pile
-PROC PrintTrick
-    push ax
-    push dx
-    mov dx, OFFSET CurrentTrick
-    DosCall DOS_WRITE_STRING
-    call PrintCrLf
-    pop dx
-    pop ax
-    ret
-ENDP PrintTrick
-        
 PROC PrintHands
     push si
     push ax

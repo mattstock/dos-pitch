@@ -19,53 +19,57 @@
     INCLUDE "globals.inc"
     INCLUDE "debug.inc"
     
-    DEBUG       EQU 0
-    
     DATASEG
 
     ; Card deck structure
-    CardVals    DB '234567890JQKA'
-    Deck        DB '2',03,'3',03,'4',03,'5',03,'6',03 
-                DB '2',04,'3',04,'4',04,'5',04,'6',04 
-                DB '2',05,'3',05,'4',05,'5',05,'6',05 
-                DB '2',06,'3',06,'4',06,'5',06,'6',06
-                DB 'A',03,'7',03,'8',03,'9',03,'0',03,'J',03,'Q',03,'K',03 
-                DB 'A',04,'7',04,'8',04,'9',04,'0',04,'J',04,'Q',04,'K',04 
-                DB 'A',05,'7',05,'8',05,'9',05,'0',05,'J',05,'Q',05,'K',05 
-                DB 'A',06,'7',06,'8',06,'9',06,'0',06,'J',06,'Q',06,'K',06,'$$'
-    TopIdx      DW Deck
+    CardVals            DB '234567890JQKA'
+    Deck                DB '2',03,'3',03,'4',03,'5',03,'6',03 
+                        DB '2',04,'3',04,'4',04,'5',04,'6',04 
+                        DB '2',05,'3',05,'4',05,'5',05,'6',05 
+                        DB '2',06,'3',06,'4',06,'5',06,'6',06
+                        DB 'A',03,'7',03,'8',03,'9',03,'0',03
+                        DB 'J',03,'Q',03,'K',03 
+                        DB 'A',04,'7',04,'8',04,'9',04,'0',04
+                        DB 'J',04,'Q',04,'K',04 
+                        DB 'A',05,'7',05,'8',05
+                        DB '9',05,'0',05,'J',05,'Q',05,'K',05 
+                        DB 'A',06,'7',06,'8',06,'9',06,'0',06
+                        DB 'J',06,'Q',06,'K',06,'$$'
+    TopIdx              DW Deck
     
-    Trump       DB ?
-    Bid         DB 0
-    Trick       DB 0
-    Dealer      DB 0
-    Pitcher     DB ?
-    NumPlayers  DB 4
+    Trump               DB ?
+    Bid                 DB 0
+    Trick               DB 0
+    Dealer              DB 0
+    Pitcher             DB ?
+    NumPlayers          DB 4
+
+    ; Storage for scoring
+    HighCard            DB 0
+    HighPlayer          DB 0
+    LowCard             DB 0
+    LowPlayer           DB 0
+    Game                DB MaxPlayers DUP(0)
+    JackPlayer          DB 0
+    GamePlayer          DB 0
     
     ; Player tracking
     ; Human is always player 0 and initial dealer
-    Players     DW HandSize*MaxPlayers DUP(?)
-    Scores      DB MaxPlayers DUP(0)
+    Players             DW HandSize*MaxPlayers DUP(?)
+    Scores              DB MaxPlayers DUP(0)
 
-    CurrentTrick  DW MaxPlayers DUP(?)
-    EndPt       DB '$'
-    
     ; Trick tracking
-    TricksP1    DW HandSize*MaxPlayers DUP('??')
-    TricksP2    DW HandSize*MaxPlayers DUP('??')
-    TricksP3    DW HandSize*MaxPlayers DUP('??')
-    TricksP4    DW HandSize*MaxPlayers DUP('??')
-    TricksP1Cnt DB 0
-    TricksP2Cnt DB 0
-    TricksP3Cnt DB 0
-    TricksP4Cnt DB 0
+    Tricks              DW HandSize*MaxPlayers DUP('??')
+    CurrentTrick        DW Tricks
+    TrickWins           DB HandSize DUP(' ')
     
     ; Various game messages
-    TopMsg      DB 'Top of deck: $'
-    WinTrickStr DB ' wins trick with $'
-    BidMsg      DB ' bids $'
-    PlayMsg     DB ' plays $'
-    Separator   DB 20 DUP('-'),'$'
+    TopMsg              DB 'Top of deck: $'
+    WinTrickStr         DB ' wins trick with $'
+    BidMsg              DB ' bids $'
+    PlayMsg             DB ' plays $'
+    Separator           DB 20 DUP('-'),'$'
+    TrickMsg            DB 'Trick: $'
     
 CODESEG
 
@@ -78,6 +82,7 @@ GLOBAL ClearCards:PROC
 GLOBAL ReportWin:PROC
 GLOBAL CompareCards:PROC
 GLOBAL SearchValue:PROC
+GLOBAL ScoreResults:PROC
     
 ProgramStart:
     ; command line args are here
@@ -98,6 +103,8 @@ ProgramStart:
     call DrawHands
     call PrintHands
 
+    mov [Trick], 0
+    
     call GetBids
 
     ; if player won, ask for trump
@@ -114,6 +121,12 @@ ProgramStart:
     push dx
     mov dx, OFFSET Separator
     DosCall DOS_WRITE_STRING
+    call PrintCrLf
+    mov dx, OFFSET TrickMsg
+    DosCall DOS_WRITE_STRING
+    mov dl, [Trick]
+    add dl, '1'
+    DosCall DOS_WRITE_CHARACTER
     call PrintCrLf
     pop dx
     pop ax
@@ -133,15 +146,17 @@ ProgramStart:
 @@norot:
     cmp cl, [Pitcher]
     jnz @@trick
-    
+
+    ; End of round stuff
     call ReportWin      ; see who get high card and takes the trick
+    inc [Trick]
     call ClearCards     ; put in discard for winner
-    ;mov [Pitcher], al   ; change who goes first
+    mov [Pitcher], al   ; change who goes first
     
     dec ch
     jnz @@roundloop
     
-;    call ScoreResults
+    call ScoreResults
     call RoundReport
 
     ; exit to DOS
@@ -309,30 +324,30 @@ ENDP GetBids
     ; bx is player index
 PROC AddToTrick
     push bx
+    push di
     shl bl, 1
     xor bh, bh
-    mov [CurrentTrick+bx], ax
+    mov di, [CurrentTrick]
+    mov [di+bx], ax
+    pop di
     pop bx
     ret
 ENDP AddToTrick
     
     ; al gets all of the cards in the pot
-    ; for now, just wipe it all
 PROC ClearCards
     push ax
-    push cx
-    push di
-    mov cl, [NumPlayers]
-    xor ch, ch
-    mov di, OFFSET CurrentTrick
-    cld
-    mov ax, '  '
-    ;; TODO
-@@loop:
-    stosw
-    loop @@loop
-    pop di
-    pop cx
+    push bx
+    ; first let's save the winner to the index
+    xor bx, bx
+    mov bl, [Trick]
+    mov [TrickWins+bx], al
+    ; Now we increment the CurrentTrick pointer to the next block
+    xor bh, bh
+    mov bl, [NumPlayers]
+    shl bx, 1
+    add [CurrentTrick], bx
+    pop bx
     pop ax
     ret
 ENDP ClearCards
@@ -343,7 +358,6 @@ PROC ReportWin
     push dx
     mov ax, 100h                ; start with player 0 as best
 
-    call PrintTrick
 @@loop:
     call CompareCards           ; al is updated for best, ah is other player
     inc ah
@@ -352,6 +366,7 @@ PROC ReportWin
     ; should have max card index in al now
     call PrintPlayerMsg         ; Player x
     push ax
+    push bx
     push ax
     mov dx, OFFSET WinTrickStr  ; wins trick with
     DosCall DOS_WRITE_STRING
@@ -359,23 +374,28 @@ PROC ReportWin
     xor ah, ah
     mov si, ax
     shl si, 1
-    mov ax, [CurrentTrick+si]   ; winning card
+    mov bx, [CurrentTrick]
+    mov ax, [bx+si]   ; winning card
     call PrintCard
     call PrintCrLf
     call PrintCrLf
     pop ax
+    pop bx
     pop dx
     ret
 ENDP ReportWin
 
     ; given index in al, return the card in ax
 PROC TrickLookup
+    push si
     push bx
-    xor bx, bx
-    mov bl, al
-    shl bl, 1
-    mov ax, [CurrentTrick+bx]   ; current winner
+    xor ah, ah
+    mov si, ax
+    shl si, 1
+    mov bx, [CurrentTrick]
+    mov ax, [si+bx]   ; current winner
     pop bx
+    pop si
     ret
 ENDP TrickLookup
 
@@ -388,10 +408,8 @@ PROC SearchValue
     mov di, OFFSET CardVals
     mov cx, 13
     repne scasb
-    je @@found
-    mov al, '!'
-    call PrintChar
-    mov al, 0ffh
+    ; a failure really shouldn't be possible, and if there's a bug
+    ; we can't do much about it anyway
 @@found:
     sub di, OFFSET CardVals
     dec di
@@ -453,5 +471,114 @@ PROC CompareCards
     ret
 ENDP CompareCards
 
+    ; Count the value of the cards for each player
+    ; Need to compute high, low, jack, and game
+    ; Should be able to do this in one pass
+PROC ScoreResults
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+
+    ; initialize the trackers
+    mov [LowCard], 'A'
+    mov [HighCard], '2'
+    mov [JackPlayer], '?'
+    mov [HighPlayer], '?'
+    mov [LowPlayer], '?'
+    mov ax, 0
+    mov di, OFFSET Game
+    xor ch, ch
+    mov cl, [NumPlayers]
+    rep stosb
+
+    ; we need two loops, one to count tricks, and one to count cards
+    ; bx tracking trick offset, and si tracking card offset
+    ; di is used to index the Game count
+    ; cl is the trickloop count, since it's just easier that way
+    mov bx, 0
+    mov cl, 0
+@@trickloop:
+    mov si, 0
+    ; who won this trick?
+    xor dh, dh
+    mov dl, [TrickWins+bx]      ; load winner index into dl
+    mov di, OFFSET Game
+    add di, dx
+@@cardloop:
+    mov ax, [Tricks+bx+si]      ; load a card
+    call PrintCard
+    call PrintCrLf
+    ; check if trump
+    cmp al, [Trump]             ; check for trump
+    jne @@gamecheck
+    ;   if higher than high?
+    ;     set High, assign di to HighPlayer
+    ;   if lower than low?
+    ;     set Low, assign di to LowPlayer
+    ;   if jack
+    ;     assign di to JackPlayer 
+@@gamecheck:
+    cmp ah, '0'
+    jne @@jcheck
+    add [BYTE PTR di], 10
+@@jcheck:
+    cmp ah, 'J'
+    jne @@qcheck
+    add [BYTE PTR di], 1
+@@qcheck:
+    cmp ah, 'Q'
+    jne @@kcheck
+    add [BYTE PTR di], 2
+@@kcheck:
+    cmp ah, 'K'
+    jne @@gameover
+    add [BYTE PTR di], 3
+@@gameover:
+    add si, 2                   ; increment by one card
+    xor ah, ah
+    mov al, [NumPlayers]
+    shl al, 1
+    cmp si, ax                  ; stop when we get to 2*NumPlayers
+    jne @@cardloop
+    add bx, ax                  ; Move to the next trick
+    inc cl
+    cmp cl, HandSize
+    jne @@trickloop
+
+    ; assign high, low, jack, game
+    mov di, OFFSET Scores
+    xor bh, bh
+    mov bl, [HighPlayer]
+    add [Scores+bx], 1
+    mov bl, [LowPlayer]
+    add [Scores+bx], 1
+    cmp [JackPlayer], '?'
+    je @@nojack
+    mov bl, [JackPlayer]
+    add [Scores+bx], 1
+@@nojack:
+    ; we'll do game later
+    mov al, [Game]
+    mov [Scores], al
+    mov al, [Game+1]
+    mov [Scores+1], al
+    mov al, [Game+2]
+    mov [Scores+2], al
+    mov al, [Game+3]
+    mov [Scores+3], al
+    
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret    
+ENDP ScoreResults
+
+    
 END ProgramStart
 

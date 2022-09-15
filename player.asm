@@ -22,7 +22,6 @@
     CardsMsg    DB 'Your cards: $'
     BidErrMsg   DB 'Bid must be greater than high bid.$'
     ScoreMsg    DB ' score: $'
-    TrickMsg    DB 'Trick: $'
     PitcherBidMsg       DB ' chooses trump $'
     PlayerMsg   DB 'Player $'
 
@@ -225,14 +224,6 @@ PROC RoundReport
     push cx
     push dx
     
-    ; Print trick info
-    mov dx, OFFSET TrickMsg
-    mov ah, 9
-    int 21h
-    mov al, [Trick]
-    call PrintDecByte
-    call PrintCrLf
-
     xor bx, bx
     xor cx, cx
 @@spl:

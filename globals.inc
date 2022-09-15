@@ -20,7 +20,7 @@
 	GLOBAL TrickCards:BYTE
 	GLOBAL Deck:BYTE
 	GLOBAL NumPlayers:BYTE
-	GLOBAL CurrentTrick[MaxPlayers]:WORD
+	GLOBAL CurrentTrick:WORD
 	GLOBAL Trick:BYTE
 	GLOBAL Scores[MaxPlayers]:BYTE
 	
