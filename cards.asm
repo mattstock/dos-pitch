@@ -149,8 +149,8 @@ ProgramStart:
 
     ; End of round stuff
     call ReportWin      ; see who get high card and takes the trick
-    inc [Trick]
     call ClearCards     ; put in discard for winner
+    inc [Trick]
     mov [Pitcher], al   ; change who goes first
     
     dec ch
@@ -449,7 +449,7 @@ PROC CompareCards
     mov al, ch
     call SearchValue
     mov bl, al          ; bl is index of current value
-    
+
     mov al, dh
     call SearchValue
     mov bh, al          ; bh is index of contender value
@@ -483,17 +483,20 @@ PROC ScoreResults
     push di
 
     ; initialize the trackers
-    mov [LowCard], 'A'
-    mov [HighCard], '2'
-    mov [JackPlayer], '?'
-    mov [HighPlayer], '?'
-    mov [LowPlayer], '?'
+    mov [LowCard], SIZE CardVals   ; use index values for easier compares
+    mov [HighCard], 0
+    mov [JackPlayer], MaxPlayers
+    mov [HighPlayer], MaxPlayers
+    mov [LowPlayer], MaxPlayers
     mov ax, 0
     mov di, OFFSET Game
     xor ch, ch
     mov cl, [NumPlayers]
     rep stosb
 
+    ; loop over tricks.
+    ; Use cl to count the tricks, end when we get to HandSize
+    
     ; we need two loops, one to count tricks, and one to count cards
     ; bx tracking trick offset, and si tracking card offset
     ; di is used to index the Game count
@@ -504,22 +507,51 @@ PROC ScoreResults
     mov si, 0
     ; who won this trick?
     xor dh, dh
+    push bx
+    xor bh, bh
+    mov bl, cl
     mov dl, [TrickWins+bx]      ; load winner index into dl
+    pop bx
     mov di, OFFSET Game
     add di, dx
 @@cardloop:
     mov ax, [Tricks+bx+si]      ; load a card
-    call PrintCard
-    call PrintCrLf
     ; check if trump
     cmp al, [Trump]             ; check for trump
     jne @@gamecheck
-    ;   if higher than high?
-    ;     set High, assign di to HighPlayer
-    ;   if lower than low?
-    ;     set Low, assign di to LowPlayer
-    ;   if jack
-    ;     assign di to JackPlayer 
+    ; check all the trump point cards
+    ; compare values
+    push ax
+    mov al, ah          ; current value
+    call SearchValue
+    mov dh, al
+    pop ax
+    mov dl, [HighCard]
+    cmp dh, dl
+    jbe @@lowercheck
+    mov [HighCard], dh
+    push ax
+    mov al, [TrickWins+bx]
+    mov [HighPlayer], al
+    pop ax
+@@lowercheck:
+    mov dl, [LowCard]
+    cmp dh, dl
+    jbe @@jackcheck
+    mov [LowCard], dh
+    push ax
+    mov al, [TrickWins+bx]
+    mov [LowPlayer], al
+    pop ax
+@@jackcheck:
+    cmp ah, 'J'
+    jne @@gamecheck
+    push ax
+    mov al, [TrickWins+bx]
+    add al, '0'
+    call PrintChar
+    mov [JackPlayer], al
+    pop ax
 @@gamecheck:
     cmp ah, '0'
     jne @@jcheck
@@ -546,8 +578,10 @@ PROC ScoreResults
     add bx, ax                  ; Move to the next trick
     inc cl
     cmp cl, HandSize
-    jne @@trickloop
-
+    je @@assign
+    jmp @@trickloop
+@@assign:
+    
     ; assign high, low, jack, game
     mov di, OFFSET Scores
     xor bh, bh

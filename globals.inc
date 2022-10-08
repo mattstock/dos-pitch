@@ -23,7 +23,10 @@
 	GLOBAL CurrentTrick:WORD
 	GLOBAL Trick:BYTE
 	GLOBAL Scores[MaxPlayers]:BYTE
-	
+	GLOBAL HighPlayer:BYTE
+	GLOBAL LowPlayer:BYTE
+	GLOBAL JackPlayer:BYTE
+
 	GLOBAL AddToTrick:PROC
 	GLOBAL PrintCard:PROC
 	GLOBAL TrickLookup:PROC

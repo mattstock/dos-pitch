@@ -24,7 +24,11 @@
     ScoreMsg    DB ' score: $'
     PitcherBidMsg       DB ' chooses trump $'
     PlayerMsg   DB 'Player $'
-
+    HighMsg     DB 'High: $'
+    LowMsg      DB 'Low: $'
+    JackMsg     DB 'Jack: $'
+    GameMsg     DB 'Game: $'
+    
     CODESEG
     
 ; al is the player index
@@ -240,6 +244,34 @@ PROC RoundReport
     inc cl
     cmp cl, [NumPlayers]
     jne @@spl
+
+    mov dx, OFFSET HighMsg
+    mov ah, 9
+    int 21h
+    mov al, [HighPlayer]
+    call PrintPlayerMsg
+    call PrintCrLf
+
+    mov dx, OFFSET LowMsg
+    mov ah, 9
+    int 21h
+    mov al, [LowPlayer]
+    call PrintPlayerMsg
+    call PrintCrLf
+
+    mov dx, OFFSET JackMsg
+    mov ah, 9
+    int 21h
+    mov al, [JackPlayer]
+    call PrintPlayerMsg
+    call PrintCrLf
+
+    mov dx, OFFSET GameMsg
+    mov ah, 9
+    int 21h
+
+    call PrintCrLf
+
     pop dx
     pop cx
     pop bx
