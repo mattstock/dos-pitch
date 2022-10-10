@@ -25,6 +25,8 @@
     Old00HandlerOfs     DW ?
 
     VsMsg               DB ' vs $'
+
+    DebugMsg            DB 'Debugging $'
     
     CODESEG
     
@@ -120,6 +122,46 @@ PROC PrintChar
     pop ax
     ret    
 ENDP PrintChar
+
+    ; dump everything about the current scoring state
+PROC DebugScoring
+    push ax
+    push dx
+    mov dx, OFFSET Separator
+    DosCall DOS_WRITE_STRING
+    call PrintCrLf
+    mov dx, OFFSET DebugMsg
+    DosCall DOS_WRITE_STRING
+    mov dx, OFFSET TrickMsg
+    DosCall DOS_WRITE_STRING
+    mov dl, [Trick]
+    add dl, '1'
+    DosCall DOS_WRITE_CHARACTER
+    call PrintCrLf
+    ; Print High and Player
+    mov dx, OFFSET HighMsg
+    DosCall DOS_WRITE_STRING
+    mov dl, [HighCard]
+    add dl, '0'
+    DosCall DOS_WRITE_CHARACTER
+    mov dl, ' '
+    DosCall DOS_WRITE_CHARACTER
+    mov dl, [HighPlayer]
+    add dl, '1'
+    DosCall DOS_WRITE_CHARACTER
+    call PrintCrLf
+    
+    ; Print Low and Player
+    ; Print Jack Player
+    ; Print Game sum for each Player
+    mov dx, OFFSET Separator
+    DosCall DOS_WRITE_STRING
+    call PrintCrLf
+    pop dx
+    pop ax
+    ret
+ENDP DebugScoring
+
     
 END
     

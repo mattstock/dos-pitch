@@ -50,8 +50,10 @@
     LowCard             DB 0
     LowPlayer           DB 0
     Game                DB MaxPlayers DUP(0)
+    GameIdx             DW Game
     JackPlayer          DB 0
     GamePlayer          DB 0
+    TrickPlayer         DB 0
     
     ; Player tracking
     ; Human is always player 0 and initial dealer
@@ -78,11 +80,13 @@ GLOBAL ShuffleDeck:PROC
 GLOBAL DrawCard:PROC
 GLOBAL DrawHands:PROC
 GLOBAL GetBids:PROC
-GLOBAL ClearCards:PROC
 GLOBAL ReportWin:PROC
 GLOBAL CompareCards:PROC
 GLOBAL SearchValue:PROC
 GLOBAL ScoreResults:PROC
+GLOBAL GameCheck:PROC
+GLOBAL HighLowJackCheck:PROC
+GLOBAL TrickScoring:PROC
     
 ProgramStart:
     ; command line args are here
@@ -149,7 +153,14 @@ ProgramStart:
 
     ; End of round stuff
     call ReportWin      ; see who get high card and takes the trick
-    call ClearCards     ; put in discard for winner
+    ; al is the winner
+    ; TODO what's bx
+    push bx
+    xor bh, bh
+    mov bl, [Trick]
+    mov [TrickWins+bx], al
+    pop bx
+    ;
     inc [Trick]
     mov [Pitcher], al   ; change who goes first
     
@@ -319,9 +330,8 @@ PROC GetBids
     ret
 ENDP GetBids
 
-
     ; add ax card onto the trick
-    ; bx is player index
+    ; bx is the winner?
 PROC AddToTrick
     push bx
     push di
@@ -333,24 +343,6 @@ PROC AddToTrick
     pop bx
     ret
 ENDP AddToTrick
-    
-    ; al gets all of the cards in the pot
-PROC ClearCards
-    push ax
-    push bx
-    ; first let's save the winner to the index
-    xor bx, bx
-    mov bl, [Trick]
-    mov [TrickWins+bx], al
-    ; Now we increment the CurrentTrick pointer to the next block
-    xor bh, bh
-    mov bl, [NumPlayers]
-    shl bx, 1
-    add [CurrentTrick], bx
-    pop bx
-    pop ax
-    ret
-ENDP ClearCards
 
     ; See who won the trick
     ; return the index of the player in al
@@ -479,7 +471,6 @@ PROC ScoreResults
     push bx
     push cx
     push dx
-    push si
     push di
 
     ; initialize the trackers
@@ -495,93 +486,33 @@ PROC ScoreResults
     rep stosb
 
     ; loop over tricks.
-    ; Use cl to count the tricks, end when we get to HandSize
-    
-    ; we need two loops, one to count tricks, and one to count cards
-    ; bx tracking trick offset, and si tracking card offset
-    ; di is used to index the Game count
-    ; cl is the trickloop count, since it's just easier that way
-    mov bx, 0
-    mov cl, 0
+    ; Use Trick to count the tricks, end when we get to HandSize.
+    ; Use CurrentTrick to index into Tricks.
+    mov [Trick], 0
+    mov [CurrentTrick], OFFSET Trick
 @@trickloop:
-    mov si, 0
-    ; who won this trick?
-    xor dh, dh
-    push bx
-    xor bh, bh
-    mov bl, cl
-    mov dl, [TrickWins+bx]      ; load winner index into dl
-    pop bx
-    mov di, OFFSET Game
-    add di, dx
-@@cardloop:
-    mov ax, [Tricks+bx+si]      ; load a card
-    ; check if trump
-    cmp al, [Trump]             ; check for trump
-    jne @@gamecheck
-    ; check all the trump point cards
-    ; compare values
-    push ax
-    mov al, ah          ; current value
-    call SearchValue
-    mov dh, al
-    pop ax
-    mov dl, [HighCard]
-    cmp dh, dl
-    jbe @@lowercheck
-    mov [HighCard], dh
-    push ax
-    mov al, [TrickWins+bx]
-    mov [HighPlayer], al
-    pop ax
-@@lowercheck:
-    mov dl, [LowCard]
-    cmp dh, dl
-    jbe @@jackcheck
-    mov [LowCard], dh
-    push ax
-    mov al, [TrickWins+bx]
-    mov [LowPlayer], al
-    pop ax
-@@jackcheck:
-    cmp ah, 'J'
-    jne @@gamecheck
-    push ax
-    mov al, [TrickWins+bx]
-    add al, '0'
-    call PrintChar
-    mov [JackPlayer], al
-    pop ax
-@@gamecheck:
-    cmp ah, '0'
-    jne @@jcheck
-    add [BYTE PTR di], 10
-@@jcheck:
-    cmp ah, 'J'
-    jne @@qcheck
-    add [BYTE PTR di], 1
-@@qcheck:
-    cmp ah, 'Q'
-    jne @@kcheck
-    add [BYTE PTR di], 2
-@@kcheck:
-    cmp ah, 'K'
-    jne @@gameover
-    add [BYTE PTR di], 3
-@@gameover:
-    add si, 2                   ; increment by one card
-    xor ah, ah
-    mov al, [NumPlayers]
-    shl al, 1
-    cmp si, ax                  ; stop when we get to 2*NumPlayers
-    jne @@cardloop
-    add bx, ax                  ; Move to the next trick
-    inc cl
-    cmp cl, HandSize
-    je @@assign
-    jmp @@trickloop
-@@assign:
+    xor bx, bx
+    mov bl, [Trick]
+    xor dx, dx
+    mov dl, [TrickWins+bx]      ; load winner index into dx
+    mov [GameIdx], OFFSET Game
+    add [GameIdx], dx
+    mov [TrickPlayer], dl
+
+    ; At this point:
+    ;   Trick is the current trick index,
+    ;   CurrentTrick is a pointer to the first card in the trick,
+    ;   TrickPlayer is the current trick winner, and
+    ;   GameIdx points to the Game count the trick winner
+
+    call TrickScoring
+
+    call DebugScoring
     
+    inc [Trick]
+    cmp [Trick], HandSize
+    jne @@trickloop
+
     ; assign high, low, jack, game
     mov di, OFFSET Scores
     xor bh, bh
@@ -595,17 +526,8 @@ PROC ScoreResults
     add [Scores+bx], 1
 @@nojack:
     ; we'll do game later
-    mov al, [Game]
-    mov [Scores], al
-    mov al, [Game+1]
-    mov [Scores+1], al
-    mov al, [Game+2]
-    mov [Scores+2], al
-    mov al, [Game+3]
-    mov [Scores+3], al
     
     pop di
-    pop si
     pop dx
     pop cx
     pop bx
@@ -613,6 +535,103 @@ PROC ScoreResults
     ret    
 ENDP ScoreResults
 
+    ;   Trick is the current trick index,
+    ;   CurrentTrick is a pointer to the first card in the trick,
+    ;   TrickPlayer is the current trick winner, and
+    ;   GameIdx points to the Game count the trick winner
+PROC TrickScoring
+    push ax
+    push bx
+    push cx
+
+    xor ch, ch
+    mov cl, [NumPlayers]
+@@cardloop:
+    mov di, [CurrentTrick]      ; load a card
+    mov ax, [di]
+    call PrintCard
+    call PrintCrLf
+    ; check if trump
+    cmp al, [Trump]             ; check for trump
+    jne @@gamecheck
+    call HighLowJackCheck
+@@gamecheck:
+    call GameCheck
+    add [CurrentTrick], 2       ; next card in trick
+    loop @@cardloop
+
+    pop cx
+    pop bx
+    pop ax
+    ret
+ENDP TrickScoring
+
+    ; check all the trump point cards
+    ; ax is the card being reviewed
+PROC HighLowJackCheck
+    push ax
+    push dx
+
+    mov al, ah          ; current value
+    call SearchValue
+    mov dh, al
+
+    mov dl, [HighCard]
+    push ax
+    mov ax, dx
+    call PrintHex
+    call PrintCrLf
+    pop ax
+    cmp dh, dl
+    jbe @@lowercheck
+    mov [HighCard], dh
+    push ax
+    mov al, [TrickPlayer]
+    mov [HighPlayer], al
+    pop ax
+@@lowercheck:
+    mov dl, [LowCard]
+    cmp dh, dl
+    jbe @@jackcheck
+    mov [LowCard], dh
+    push ax
+    mov al, [TrickPlayer]
+    mov [LowPlayer], al
+    pop ax
+@@jackcheck:
+    cmp ah, 'J'
+    jne @@done
+    mov al, [TrickPlayer]
+    mov [JackPlayer], al
+
+@@done:
+    pop dx
+    pop ax
+    ret
+ENDP HighLowJackCheck
+
+    
+    ; compare values
+    ; ax is the card being reviewed
+PROC GameCheck
+    cmp ah, '0'
+    jne @@jcheck
+    add [GameIdx], 10
+@@jcheck:
+    cmp ah, 'J'
+    jne @@qcheck
+    add [GameIdx], 1
+@@qcheck:
+    cmp ah, 'Q'
+    jne @@kcheck
+    add [GameIdx], 2
+@@kcheck:
+    cmp ah, 'K'
+    jne @@done
+    add [GameIdx], 3
+@@done:
+    ret
+ENDP GameCheck    
     
 END ProgramStart
 

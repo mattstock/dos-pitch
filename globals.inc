@@ -16,6 +16,8 @@
 	GLOBAL Players[HandSize*MaxPlayers]:WORD
 	GLOBAL BidMsg:BYTE
 	GLOBAL PlayMsg:BYTE
+	GLOBAL Separator[20]:BYTE
+	GLOBAL TrickMsg:BYTE
 	GLOBAL Trump:BYTE
 	GLOBAL TrickCards:BYTE
 	GLOBAL Deck:BYTE
@@ -24,9 +26,12 @@
 	GLOBAL Trick:BYTE
 	GLOBAL Scores[MaxPlayers]:BYTE
 	GLOBAL HighPlayer:BYTE
+	GLOBAL HighCard:BYTE
 	GLOBAL LowPlayer:BYTE
+	GLOBAL LowCard:BYTE
 	GLOBAL JackPlayer:BYTE
-
+	GLOBAL Game[MaxPlayers]:BYTE
+	
 	GLOBAL AddToTrick:PROC
 	GLOBAL PrintCard:PROC
 	GLOBAL TrickLookup:PROC
