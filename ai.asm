@@ -2,6 +2,12 @@
     DOSSEG
     MODEL small
 
+    INCLUDE "\tasm\imacros.mac"
+    INCLUDE "\tasm\bios.inc"
+    INCLUDE "\tasm\ibios.mac"
+    INCLUDE "\tasm\dos.inc"
+    INCLUDE "\tasm\idos.mac"
+
     INCLUDE "ai.inc"
     INCLUDE "globals.inc"
     INCLUDE "player.inc"
@@ -103,7 +109,7 @@ PROC AiBid
     ret
 ENDP AiBid
 
-    ; cl is the player index
+    ; CurrentPlayer is the player index
 PROC AiPlay
     push ax
     push bx
@@ -111,20 +117,18 @@ PROC AiPlay
     push dx
     push si
 
-    mov al, cl
-    call PrintPlayerMsg
-    mov ah, 9
-    mov dx, OFFSET PlayMsg
-    int 21h                     ; plays
+    mov al, [CurrentPlayer]
+    call PrintPlayerMsg         ; Player x
+    mov dx, OFFSET PlayMsg      ; plays
+    DosCall DOS_WRITE_STRING
 
     ; Get AI hand reference into bx
     mov bx, OFFSET Players
     xor ch, ch
-    push cx
+    mov cl, [CurrentPlayer]
 @@loop:
     add bx, 2*HandSize
     loop @@loop
-    pop cx
 
     ; for now, just pick the first available card
     mov si, 0
@@ -138,8 +142,8 @@ PROC AiPlay
     jmp @@done 
 @@found:
     mov [WORD PTR bx+si], 'xx'
-    mov bx, cx
-    call AddToTrick
+    ; ax is the card we picked
+    call AddToTrick     
     call PrintCard
 @@done:    
     call PrintCrLf

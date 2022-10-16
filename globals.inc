@@ -30,6 +30,7 @@
 	GLOBAL LowPlayer:BYTE
 	GLOBAL LowCard:BYTE
 	GLOBAL JackPlayer:BYTE
+	GLOBAL CurrentPlayer:BYTE
 	GLOBAL Game[MaxPlayers]:BYTE
 	
 	GLOBAL AddToTrick:PROC

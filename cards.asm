@@ -42,6 +42,7 @@
     Trick               DB 0
     Dealer              DB 0
     Pitcher             DB ?
+    CurrentPlayer       DB ?
     NumPlayers          DB 4
 
     ; Storage for scoring
@@ -119,8 +120,10 @@ ProgramStart:
     call AnnounceStart    ; Print winner of bidding process
 
     ; ch tracks round loop, cl tracks trick loop
+    ; CurrentPlayer is set to the current player
     mov ch, HandSize
 @@roundloop:
+    ; print out trick header
     push ax
     push dx
     mov dx, OFFSET Separator
@@ -133,28 +136,33 @@ ProgramStart:
     DosCall DOS_WRITE_CHARACTER
     call PrintCrLf
     pop dx
+    mov al, [Pitcher]
+    mov [CurrentPlayer], al
     pop ax
-    mov cl, [Pitcher]
+    mov cl, [NumPlayers]
 @@trick:
-    cmp cl, 0
+    cmp [CurrentPlayer], 0 ; see if we're the human
     jne @@aip
     call HumanPlay
     jmp @@next
 @@aip:
     call AiPlay
 @@next:
-    inc cl
-    cmp cl, [NumPlayers]
+    inc [CurrentPlayer]
+    push ax
+    mov al, [CurrentPlayer]
+    cmp al, [NumPlayers]
+    pop ax
     jne @@norot
-    xor cl, cl
+    mov [CurrentPlayer], 0 ; roll over to 0
 @@norot:
-    cmp cl, [Pitcher]
+    dec cl
+    cmp cl, 0
     jnz @@trick
 
     ; End of round stuff
     call ReportWin      ; see who get high card and takes the trick
-    ; al is the winner
-    ; TODO what's bx
+    ; al is the winner, save to the TrickWins list
     push bx
     xor bh, bh
     mov bl, [Trick]
@@ -331,12 +339,13 @@ PROC GetBids
 ENDP GetBids
 
     ; add ax card onto the trick
-    ; bx is the winner?
+    ; CurrentPlayer is the player
 PROC AddToTrick
     push bx
     push di
+    xor bx, bx
+    mov bl, [CurrentPlayer]
     shl bl, 1
-    xor bh, bh
     mov di, [CurrentTrick]
     mov [di+bx], ax
     pop di
@@ -347,7 +356,6 @@ ENDP AddToTrick
     ; See who won the trick
     ; return the index of the player in al
 PROC ReportWin
-    push dx
     mov ax, 100h                ; start with player 0 as best
 
 @@loop:
@@ -355,10 +363,11 @@ PROC ReportWin
     inc ah
     cmp ah, [NumPlayers]
     jne @@loop
-    ; should have max card index in al now
+    ; should have max card index in al now, aka player index
     call PrintPlayerMsg         ; Player x
     push ax
     push bx
+    push dx
     push ax
     mov dx, OFFSET WinTrickStr  ; wins trick with
     DosCall DOS_WRITE_STRING
@@ -371,9 +380,9 @@ PROC ReportWin
     call PrintCard
     call PrintCrLf
     call PrintCrLf
-    pop ax
-    pop bx
     pop dx
+    pop bx
+    pop ax
     ret
 ENDP ReportWin
 

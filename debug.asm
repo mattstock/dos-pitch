@@ -152,8 +152,37 @@ PROC DebugScoring
     call PrintCrLf
     
     ; Print Low and Player
+    mov dx, OFFSET LowMsg
+    DosCall DOS_WRITE_STRING
+    mov dl, [LowCard]
+    add dl, '0'
+    DosCall DOS_WRITE_CHARACTER
+    mov dl, ' '
+    DosCall DOS_WRITE_CHARACTER
+    mov dl, [LowPlayer]
+    add dl, '1'
+    DosCall DOS_WRITE_CHARACTER
+    call PrintCrLf
+
     ; Print Jack Player
+    mov dx, OFFSET JackMsg
+    DosCall DOS_WRITE_STRING
+    mov dl, [JackPlayer]
+    cmp dl, '?'
+    je @@nojackforyou
+    add dl, '1'
+    DosCall DOS_WRITE_CHARACTER
+    jmp @@game
+@@nojackforyou:
+    mov dl, '-'
+    DosCall DOS_WRITE_CHARACTER
+@@game:
+    call PrintCrLf
+    
     ; Print Game sum for each Player
+
+    DosCall DOS_CHARACTER_INPUT
+    
     mov dx, OFFSET Separator
     DosCall DOS_WRITE_STRING
     call PrintCrLf

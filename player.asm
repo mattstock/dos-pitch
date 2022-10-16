@@ -175,7 +175,6 @@ PROC HumanPlay
     je @@tryagain
     ; move the card to the next free slot
     mov [Players+si], 'xx'
-    mov bx, 0           ; player index
     call AddToTrick
 
     push ax
