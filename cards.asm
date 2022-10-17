@@ -108,8 +108,6 @@ ProgramStart:
     call DrawHands
     call PrintHands
 
-    mov [Trick], 0
-    
     call GetBids
 
     ; if player won, ask for trump
@@ -119,13 +117,11 @@ ProgramStart:
 @@noprompt:
     call AnnounceStart    ; Print winner of bidding process
 
-    ; ch tracks round loop, cl tracks trick loop
+    ; Trick tracks round loop, cx tracks turn loop
     ; CurrentPlayer is set to the current player
-    mov ch, HandSize
+    mov [Trick], 0
 @@roundloop:
     ; print out trick header
-    push ax
-    push dx
     mov dx, OFFSET Separator
     DosCall DOS_WRITE_STRING
     call PrintCrLf
@@ -135,10 +131,9 @@ ProgramStart:
     add dl, '1'
     DosCall DOS_WRITE_CHARACTER
     call PrintCrLf
-    pop dx
     mov al, [Pitcher]
     mov [CurrentPlayer], al
-    pop ax
+    xor ch, ch
     mov cl, [NumPlayers]
 @@trick:
     cmp [CurrentPlayer], 0 ; see if we're the human
@@ -149,30 +144,29 @@ ProgramStart:
     call AiPlay
 @@next:
     inc [CurrentPlayer]
-    push ax
     mov al, [CurrentPlayer]
     cmp al, [NumPlayers]
-    pop ax
     jne @@norot
     mov [CurrentPlayer], 0 ; roll over to 0
 @@norot:
-    dec cl
-    cmp cl, 0
-    jnz @@trick
+    loop @@trick
 
     ; End of round stuff
     call ReportWin      ; see who get high card and takes the trick
     ; al is the winner, save to the TrickWins list
-    push bx
     xor bh, bh
     mov bl, [Trick]
     mov [TrickWins+bx], al
-    pop bx
+    mov [Pitcher], al   ; change who goes first
+    ; increment to the next trick location
+    xor ax, ax
+    mov al, [NumPlayers]
+    shl al, 1
+    add [CurrentTrick], ax
     ;
     inc [Trick]
-    mov [Pitcher], al   ; change who goes first
-    
-    dec ch
+    mov al, [Trick]
+    cmp al, HandSize
     jnz @@roundloop
     
     call ScoreResults
@@ -431,13 +425,16 @@ PROC CompareCards
     call PrintCompare
 
     ; pull in the two cards l is suit, and h is the value
-    mov bx, ax
+
+    push ax
     call TrickLookup
     mov cx, ax                  ; cx is current high card
-    mov al, bh
+    pop ax
+    push ax
+    mov al, ah
     call TrickLookup
     mov dx, ax                  ; dx is contender card
-    mov ax, bx                  ; al is current player index, ah contender
+    pop ax
     
     cmp cl, [Trump]             
     jne @@nocurrenttrump        ; current winner doesn't have trump
@@ -450,7 +447,7 @@ PROC CompareCards
     mov al, ch
     call SearchValue
     mov bl, al          ; bl is index of current value
-
+    
     mov al, dh
     call SearchValue
     mov bh, al          ; bh is index of contender value
@@ -498,7 +495,7 @@ PROC ScoreResults
     ; Use Trick to count the tricks, end when we get to HandSize.
     ; Use CurrentTrick to index into Tricks.
     mov [Trick], 0
-    mov [CurrentTrick], OFFSET Trick
+    mov [CurrentTrick], OFFSET Tricks
 @@trickloop:
     xor bx, bx
     mov bl, [Trick]
@@ -550,8 +547,8 @@ ENDP ScoreResults
     ;   GameIdx points to the Game count the trick winner
 PROC TrickScoring
     push ax
-    push bx
     push cx
+    push di
 
     xor ch, ch
     mov cl, [NumPlayers]
@@ -569,14 +566,15 @@ PROC TrickScoring
     add [CurrentTrick], 2       ; next card in trick
     loop @@cardloop
 
+    pop di
     pop cx
-    pop bx
     pop ax
     ret
 ENDP TrickScoring
 
     ; check all the trump point cards
     ; ax is the card being reviewed
+    ; ah is value, al is suit
 PROC HighLowJackCheck
     push ax
     push dx
