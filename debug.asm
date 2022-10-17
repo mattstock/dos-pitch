@@ -79,12 +79,8 @@ ENDP PrintHands
     ; look up in the CurrentTrick and print the card
 PROC PrintPlayerTrick
     push ax
-    push di
-
     call TrickLookup
     call PrintCard
-
-    pop di
     pop ax
     ret
 ENDP PrintPlayerTrick
