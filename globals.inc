@@ -10,7 +10,8 @@
 	DeckSize    EQU 52
     	MaxPlayers  EQU 4
     	HandSize    EQU 6
-    
+
+	GLOBAL CardVals:BYTE
 	GLOBAL Bid:BYTE
 	GLOBAL Pitcher:BYTE
 	GLOBAL Players[HandSize*MaxPlayers]:WORD
@@ -28,6 +29,7 @@
 	GLOBAL HighPlayer:BYTE
 	GLOBAL HighCard:BYTE
 	GLOBAL LowPlayer:BYTE
+	GLOBAL TrickPlayer:BYTE
 	GLOBAL LowCard:BYTE
 	GLOBAL JackPlayer:BYTE
 	GLOBAL CurrentPlayer:BYTE

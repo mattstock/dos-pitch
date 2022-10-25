@@ -262,9 +262,11 @@ PROC RoundReport
     mov ah, 9
     int 21h
     mov al, [JackPlayer]
+    cmp al, '?'
+    je @@nojack
     call PrintPlayerMsg
+@@nojack:
     call PrintCrLf
-
     mov dx, OFFSET GameMsg
     mov ah, 9
     int 21h

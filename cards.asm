@@ -482,7 +482,7 @@ PROC ScoreResults
     ; initialize the trackers
     mov [LowCard], SIZE CardVals   ; use index values for easier compares
     mov [HighCard], 0
-    mov [JackPlayer], MaxPlayers
+    mov [JackPlayer], '?'
     mov [HighPlayer], MaxPlayers
     mov [LowPlayer], MaxPlayers
     mov ax, 0
@@ -584,11 +584,6 @@ PROC HighLowJackCheck
     mov dh, al
 
     mov dl, [HighCard]
-    push ax
-    mov ax, dx
-    call PrintHex
-    call PrintCrLf
-    pop ax
     cmp dh, dl
     jbe @@lowercheck
     mov [HighCard], dh
@@ -599,7 +594,7 @@ PROC HighLowJackCheck
 @@lowercheck:
     mov dl, [LowCard]
     cmp dh, dl
-    jbe @@jackcheck
+    ja @@jackcheck
     mov [LowCard], dh
     push ax
     mov al, [TrickPlayer]

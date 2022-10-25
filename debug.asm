@@ -122,6 +122,7 @@ ENDP PrintChar
     ; dump everything about the current scoring state
 PROC DebugScoring
     push ax
+    push bx
     push dx
     mov dx, OFFSET Separator
     DosCall DOS_WRITE_STRING
@@ -133,12 +134,18 @@ PROC DebugScoring
     mov dl, [Trick]
     add dl, '1'
     DosCall DOS_WRITE_CHARACTER
+    mov dl, ' '
+    DosCall DOS_WRITE_CHARACTER
+    mov dl, [TrickPlayer]
+    add dl, '1'
+    DosCall DOS_WRITE_CHARACTER
     call PrintCrLf
     ; Print High and Player
     mov dx, OFFSET HighMsg
     DosCall DOS_WRITE_STRING
-    mov dl, [HighCard]
-    add dl, '0'
+    xor bh, bh
+    mov bl, [HighCard]
+    mov dl, [CardVals+bx]
     DosCall DOS_WRITE_CHARACTER
     mov dl, ' '
     DosCall DOS_WRITE_CHARACTER
@@ -150,8 +157,8 @@ PROC DebugScoring
     ; Print Low and Player
     mov dx, OFFSET LowMsg
     DosCall DOS_WRITE_STRING
-    mov dl, [LowCard]
-    add dl, '0'
+    mov bl, [LowCard]
+    mov dl, [CardVals+bx]
     DosCall DOS_WRITE_CHARACTER
     mov dl, ' '
     DosCall DOS_WRITE_CHARACTER
@@ -183,6 +190,7 @@ PROC DebugScoring
     DosCall DOS_WRITE_STRING
     call PrintCrLf
     pop dx
+    pop bx
     pop ax
     ret
 ENDP DebugScoring
